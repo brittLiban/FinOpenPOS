@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createClient }  from "@/lib/supabase/server";
+import { createClient } from "@/lib/supabase/server";
 
 /* ────────────────────────────────────────── */
 /* GET  /api/orders  – return *all* orders    */
@@ -90,6 +90,45 @@ export async function POST(req: Request) {
         .insert(rows);
 
       if (itemErr) throw itemErr;
+    }
+
+    /* 2.5️ reduce stock for each product -------------------------- */
+    for (const item of products) {
+      const { id, quantity } = item;
+
+      const { data: productData, error: stockFetchErr } = await supabase
+        .from("products")
+        .select("in_stock")
+        .eq("id", id)
+        .single();
+
+      if (stockFetchErr || !productData) {
+        return NextResponse.json(
+          { error: `Failed to fetch stock for product ID ${id}` },
+          { status: 400 }
+        );
+      }
+
+      const newStock = productData.in_stock - quantity;
+
+      if (newStock < 0) {
+        return NextResponse.json(
+          { error: `Not enough stock for product ID ${id}` },
+          { status: 400 }
+        );
+      }
+
+      const { error: stockUpdateErr } = await supabase
+        .from("products")
+        .update({ in_stock: newStock })
+        .eq("id", id);
+
+      if (stockUpdateErr) {
+        return NextResponse.json(
+          { error: `Failed to update stock for product ID ${id}` },
+          { status: 500 }
+        );
+      }
     }
 
     /* 3️. insert transaction -------------------------- */
