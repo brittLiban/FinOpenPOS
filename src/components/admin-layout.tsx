@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { BoxesIcon } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -36,6 +37,7 @@ const pageNames: { [key: string]: string } = {
   "/admin/orders": "Orders",
   "/admin/pos": "Point of Sale",
   "/admin/cashier": "Cashier",
+  "/admin/inventory": "Inventory",
 };
 
 export function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -106,6 +108,25 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
                 </TooltipTrigger>
                 <TooltipContent side="right">Dashboard</TooltipContent>
               </Tooltip>
+{/* I ADDED */}
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Link
+                    href="/admin/inventory"
+                    className={`flex h-9 w-9 items-center justify-center rounded-lg ${
+                      pathname === "/admin/inventory"
+                        ? "bg-accent text-accent-foreground"
+                        : "text-muted-foreground"
+                    } transition-colors hover:text-foreground md:h-8 md:w-8`}
+                  >
+                    <BoxesIcon className="h-5 w-5" />
+                    <span className="sr-only">Inventory</span>
+                  </Link>
+                </TooltipTrigger>
+                <TooltipContent side="right">Inventory</TooltipContent>
+              </Tooltip>
+
+
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Link
