@@ -90,7 +90,7 @@ export default function POSPage() {
         )
       );
     } else {
-      setSelectedProducts([...selectedProducts, { ...product, quantity: 1 }]);
+      setSelectedProducts([...selectedProducts, { ...product, quantity: 1, price: product.price }]);
     }
   };
 
@@ -137,11 +137,12 @@ export default function POSPage() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          customerId: selectedCustomer.id,
-          paymentMethodId: paymentMethod.id,
+          customer_id: selectedCustomer.id,
+          payment_method_id: paymentMethod.id,
           products: selectedProducts.map(p => ({ id: p.id, quantity: p.quantity, price: p.price })),
-          total,
+          total_amount: total,
         }),
+
       });
 
       if (!response.ok) throw new Error("Failed to create order");

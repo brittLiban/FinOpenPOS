@@ -68,11 +68,18 @@ export default function Cashier() {
     amount: 0,
     status: "completed",
   });
+  const [editingTransactionId, setEditingTransactionId] = useState<number | null>(null);
+  const [editFormData, setEditFormData] = useState<Partial<Transaction>>({});
+  
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setNewTransaction((prev) => ({ ...prev, [name]: value }));
-  };
+
+const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const { name, value } = e.target;
+  setNewTransaction((prev) => ({
+    ...prev,
+    [name]: name === "amount" ? Number(value) : value,
+  }));
+};
 
   const handleAddTransaction = async () => {
     try {
@@ -126,6 +133,47 @@ export default function Cashier() {
     }
   }, [transactionToDelete, transactions]);
 
+  const startEditing = (transaction: Transaction) => {
+    setEditingTransactionId(transaction.id);
+    setEditFormData({ ...transaction });
+    
+  };
+
+  const cancelEditing = () => {
+    setEditingTransactionId(null);
+    setEditFormData({});
+  };
+
+ const handleEditChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const { name, value } = e.target;
+  setEditFormData((prev) => ({
+    ...prev,
+    [name]: name === "amount" ? Number(value) : value,
+  }));
+};
+
+
+  const handleEditSave = async () => {
+    try {
+      const response = await fetch(`/api/transactions/${editingTransactionId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(editFormData),
+      });
+
+      if (!response.ok) throw new Error("Failed to update transaction");
+
+      const updated = await response.json();
+      setTransactions((prev) =>
+        prev.map((t) => (t.id === updated.id ? updated : t))
+      );
+      cancelEditing();
+    } catch (error) {
+      console.error("Error updating transaction:", error);
+    }
+  };
+
+
   useEffect(() => {
     const fetchTransactions = async () => {
       try {
@@ -160,6 +208,7 @@ export default function Cashier() {
           <CardTitle>Cashier Transactions</CardTitle>
           <CardDescription>Manage your cashier transactions.</CardDescription>
         </CardHeader>
+
         <CardContent>
           <Table>
             <TableHeader>
@@ -177,57 +226,135 @@ export default function Cashier() {
                 </TableHead>
               </TableRow>
             </TableHeader>
+
             <TableBody>
-              {transactions.map((transaction) => (
-                <TableRow key={transaction.id}>
-                  <TableCell>{transaction.id}</TableCell>
-                  <TableCell>{transaction.description}</TableCell>
-                  <TableCell>{transaction.category}</TableCell>
-                  <TableCell>
-                    <Badge variant={transaction.type}>{transaction.type}</Badge>
-                  </TableCell>
-                  <TableCell>{formatDate(transaction.created_at)}</TableCell>
-                  <TableCell>${transaction.amount.toFixed(2)}</TableCell>
-                  <TableCell>
-                    <Badge
-                      variant={
-                        transaction.status === "completed"
-                          ? "default"
-                          : "secondary"
-                      }
-                    >
-                      {transaction.status}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button
-                          aria-haspopup="true"
-                          size="icon"
-                          variant="ghost"
-                        >
-                          <EllipsisVerticalIcon className="h-4 w-4" />
-                          <span className="sr-only">Toggle menu</span>
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem>Edit</DropdownMenuItem>
-                        <DropdownMenuItem
-                          onClick={() => {
-                            setTransactionToDelete(transaction);
-                            setIsDeleteConfirmationOpen(true);
-                          }}
-                        >
-                          Delete
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
-                </TableRow>
-              ))}
+              {transactions.map((transaction) =>
+                editingTransactionId === transaction.id ? (
+                  /* ───────────── EDIT ROW ───────────── */
+                  <TableRow key={transaction.id}>
+                    <TableCell>{transaction.id}</TableCell>
+
+                    <TableCell>
+                      <Input
+                        name="description"
+                        value={editFormData.description ?? ""}
+                        onChange={handleEditChange}
+                      />
+                    </TableCell>
+
+                    <TableCell>
+                      <Input
+                        name="category"
+                        value={editFormData.category ?? ""}
+                        onChange={handleEditChange}
+                      />
+                    </TableCell>
+
+                    <TableCell>
+                      <Select
+                        defaultValue={editFormData.type as string}
+                        onValueChange={(v) =>
+                          setEditFormData({ ...editFormData, type: v as TransactionType })
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Type" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="income">Income</SelectItem>
+                          <SelectItem value="expense">Expense</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </TableCell>
+
+                    <TableCell>{formatDate(transaction.created_at)}</TableCell>
+
+                    <TableCell>
+                      <Input
+                        name="amount"
+                        type="number"
+                        value={editFormData.amount ?? 0}
+                        onChange={handleEditChange}
+                      />
+                    </TableCell>
+
+                    <TableCell>
+                      <Select
+                        defaultValue={editFormData.status as string}
+                        onValueChange={(v) =>
+                          setEditFormData({ ...editFormData, status: v })
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Status" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="completed">Completed</SelectItem>
+                          <SelectItem value="pending">Pending</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </TableCell>
+
+                    <TableCell>
+                      <Button onClick={handleEditSave}>Save</Button>
+                      <Button variant="outline" onClick={cancelEditing} className="ml-2">
+                        Cancel
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  /* ────────── READ-ONLY ROW ─────────── */
+                  <TableRow key={transaction.id}>
+                    <TableCell>{transaction.id}</TableCell>
+                    <TableCell>{transaction.description}</TableCell>
+                    <TableCell>{transaction.category}</TableCell>
+
+                    <TableCell>
+                      <Badge variant={transaction.type}>{transaction.type}</Badge>
+                    </TableCell>
+
+                    <TableCell>{formatDate(transaction.created_at)}</TableCell>
+                    <TableCell>${transaction.amount.toFixed(2)}</TableCell>
+
+                    <TableCell>
+                      <Badge
+                        variant={transaction.status === "completed" ? "default" : "secondary"}
+                      >
+                        {transaction.status}
+                      </Badge>
+                    </TableCell>
+
+                    <TableCell>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button size="icon" variant="ghost" aria-haspopup="true">
+                            <EllipsisVerticalIcon className="h-4 w-4" />
+                            <span className="sr-only">Toggle menu</span>
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => startEditing(transaction)}>
+                            Edit
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => {
+                              setTransactionToDelete(transaction);
+                              setIsDeleteConfirmationOpen(true);
+                            }}
+                          >
+                            Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </TableRow>
+                )
+              )}
+
+              {/* ───────────── NEW ROW ───────────── */}
               <TableRow>
                 <TableCell>New</TableCell>
+
                 <TableCell>
                   <Input
                     name="description"
@@ -236,6 +363,7 @@ export default function Cashier() {
                     placeholder="Description"
                   />
                 </TableCell>
+
                 <TableCell>
                   <Input
                     name="category"
@@ -244,18 +372,16 @@ export default function Cashier() {
                     placeholder="Category"
                   />
                 </TableCell>
+
                 <TableCell>
                   <Select
                     defaultValue={newTransaction.type}
-                    onValueChange={(value) =>
-                      setNewTransaction({
-                        ...newTransaction,
-                        type: value as TransactionType,
-                      })
+                    onValueChange={(v) =>
+                      setNewTransaction({ ...newTransaction, type: v as TransactionType })
                     }
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder="Theme" />
+                      <SelectValue placeholder="Type" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="income">Income</SelectItem>
@@ -263,7 +389,9 @@ export default function Cashier() {
                     </SelectContent>
                   </Select>
                 </TableCell>
+
                 <TableCell>{formatDate(new Date().toISOString())}</TableCell>
+
                 <TableCell>
                   <Input
                     name="amount"
@@ -273,14 +401,12 @@ export default function Cashier() {
                     placeholder="Amount"
                   />
                 </TableCell>
+
                 <TableCell>
                   <Select
                     defaultValue={newTransaction.status}
-                    onValueChange={(value) =>
-                      setNewTransaction({
-                        ...newTransaction,
-                        status: value,
-                      })
+                    onValueChange={(v) =>
+                      setNewTransaction({ ...newTransaction, status: v })
                     }
                   >
                     <SelectTrigger>
@@ -292,6 +418,7 @@ export default function Cashier() {
                     </SelectContent>
                   </Select>
                 </TableCell>
+
                 <TableCell>
                   <Button onClick={handleAddTransaction}>Add</Button>
                 </TableCell>
@@ -299,25 +426,19 @@ export default function Cashier() {
             </TableBody>
           </Table>
         </CardContent>
-        {/* Remove card footer */}
       </Card>
-      <Dialog
-        open={isDeleteConfirmationOpen}
-        onOpenChange={setIsDeleteConfirmationOpen}
-      >
+
+      {/* ───────── Delete confirmation dialog ───────── */}
+      <Dialog open={isDeleteConfirmationOpen} onOpenChange={setIsDeleteConfirmationOpen}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Confirm Deletion</DialogTitle>
             <DialogDescription>
-              Are you sure you want to delete this transaction? This action
-              cannot be undone.
+              Are you sure you want to delete this transaction? This action cannot be undone.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setIsDeleteConfirmationOpen(false)}
-            >
+            <Button variant="outline" onClick={() => setIsDeleteConfirmationOpen(false)}>
               Cancel
             </Button>
             <Button variant="destructive" onClick={handleDeleteTransaction}>
@@ -328,4 +449,5 @@ export default function Cashier() {
       </Dialog>
     </>
   );
+
 }

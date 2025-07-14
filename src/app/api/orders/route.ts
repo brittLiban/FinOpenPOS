@@ -1,106 +1,112 @@
-import { createClient } from '@/lib/supabase/server'
-import { NextResponse } from 'next/server'
+import { NextResponse } from "next/server";
+import { createClient }  from "@/lib/supabase/server";
 
-export async function GET(request: Request) {
+/* ────────────────────────────────────────── */
+/* GET  /api/orders  – return *all* orders    */
+/* ────────────────────────────────────────── */
+export async function GET() {
   const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-  const { data: { user } } = await supabase.auth.getUser();
-  
-  if (!user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  if (!user)
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { data, error } = await supabase
-    .from('orders')
-    .select(`
-      id,
-      customer_id,
-      total_amount,
-      user_uid,
-      status,
-      created_at,
-      customer:customer_id (
-        name
-      )
-      `)
-    .eq('user_uid', user.id)
+    .from("orders")
+    .select(
+      `
+        id,
+        customer_id,
+        payment_method_id,
+        total_amount,
+        status,
+        created_at,
+        customer:customer_id ( name ),
+        payment_method:payment_method_id ( name )
+      `
+    )
+    .eq("user_uid", user.id)
+    .order("created_at", { ascending: false });
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
-  }
+  if (error)
+    return NextResponse.json({ error: error.message }, { status: 500 });
 
-  return NextResponse.json(data)
+  return NextResponse.json(data);
 }
 
-export async function POST(request: Request) {
+/* ────────────────────────────────────────── */
+/* POST /api/orders – create a new order      */
+/* ────────────────────────────────────────── */
+export async function POST(req: Request) {
   const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-  const { data: { user } } = await supabase.auth.getUser();
-  
-  if (!user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  if (!user)
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { customerId, paymentMethodId, products, total } = await request.json();
+  /* ── parse body ───────────────────────── */
+  const {
+    customer_id,
+    payment_method_id,
+    total_amount,
+    status = "pending",
+    products = [], // [{id, quantity, price}]
+  } = await req.json();
 
   try {
-    // Insert the order
-    const { data: orderData, error: orderError } = await supabase
-      .from('orders')
+    /* 1️. insert order -------------------------------- */
+    const { data: order, error: orderErr } = await supabase
+      .from("orders")
       .insert({
-        customer_id: customerId,
-        total_amount: total,
+        customer_id,
+        payment_method_id,
+        total_amount,
+        status,
         user_uid: user.id,
-        status: 'completed'
       })
-      .select('*, customer:customers(name)')
+      .select(
+        "*, customer:customer_id(name), payment_method:payment_method_id(name)"
+      )
       .single();
 
-    if (orderError) {
-      throw orderError;
-    }
+    if (orderErr) throw orderErr;
 
-    // Insert the order items
-    const orderItems = products.map((product: { id: number, quantity: number, price: number }) => ({
-      order_id: orderData.id,
-      product_id: product.id,
-      quantity: product.quantity,
-      price: product.price
-    }));
-
-    const { error: itemsError } = await supabase
-      .from('order_items')
-      .insert(orderItems);
-
-    if (itemsError) {
-      // If there's an error inserting order items, delete the order
-      await supabase.from('orders').delete().eq('id', orderData.id);
-      throw itemsError;
-    }
-
-    // Insert the transaction record
-    const { error: transactionError } = await supabase
-      .from('transactions')
-      .insert({
-        order_id: orderData.id,
-        payment_method_id: paymentMethodId,
-        amount: total,
+    /* 2️. insert order_items -------------------------- */
+    if (products.length) {
+      const rows = products.map((p: any) => ({
+        order_id: order.id,
+        product_id: p.id,
+        quantity: p.quantity,
+        price: p.price,
         user_uid: user.id,
-        status: 'completed',
-        category: 'selling',
-        type: 'income',
-        description: `Payment for order #${orderData.id}`
-      });
+      }));
 
-    if (transactionError) {
-      // If there's an error inserting the transaction, delete the order and order items
-      await supabase.from('orders').delete().eq('id', orderData.id);
-      await supabase.from('order_items').delete().eq('order_id', orderData.id);
-      throw transactionError;
+      const { error: itemErr } = await supabase
+        .from("order_items")
+        .insert(rows);
+
+      if (itemErr) throw itemErr;
     }
 
-    return NextResponse.json(orderData);
-  } catch (error) {
-    return NextResponse.json({ error: (error as Error).message }, { status: 500 });
+    /* 3️. insert transaction -------------------------- */
+    await supabase.from("transactions").insert({
+      order_id: order.id,
+      payment_method_id,
+      amount: total_amount,
+      user_uid: user.id,
+      status: "completed",
+      category: "selling",
+      type: "income",
+      description: `Payment for order #${order.id}`,
+    });
+
+    return NextResponse.json(order, { status: 201 });
+  } catch (err: any) {
+    console.error("POST /orders error:", err);
+    return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }

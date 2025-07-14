@@ -1,84 +1,62 @@
-import { createClient } from '@/lib/supabase/server'
-import { NextResponse } from 'next/server'
+// app/api/products/[productId]/route.ts
+export const runtime = "nodejs";           // ensure pooled Postgres, not edge
 
-export async function PUT(
-  request: Request,
-  { params }: { params: { productId: string, orderId: string } }
-) {
-  const supabase = createClient();
+import { createClient } from "@/lib/supabase/server";
+import { NextRequest, NextResponse } from "next/server";
 
-  const { data: { user } } = await supabase.auth.getUser();
-  
-  if (!user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+/* ---------- helpers ---------- */
+const supa = () => createClient();
 
-  const updatedProduct = await request.json();
-  const productId = params.productId;
-  const orderId = params.orderId;
-
-  const { data, error } = await supabase
-    .from('products')
-    .update({ ...updatedProduct, user_uid: user.id })
-    .eq('id', productId)
-    .eq('user_uid', user.id)
-    .select()
-
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
-  }
-
-  if (data.length === 0) {
-    return NextResponse.json({ error: 'Product not found or not authorized' }, { status: 404 })
-  }
-
-  const orderUpdate = await supabase
-    .from('orders')
-    .update({ ...updatedProduct, user_uid: user.id })
-    .eq('id', orderId)
-    .eq('user_uid', user.id)
-
-  if (orderUpdate.error) {
-    return NextResponse.json({ error: orderUpdate.error.message }, { status: 500 })
-  }
-
-  return NextResponse.json(data[0])
+async function getUser() {
+  const { data } = await supa().auth.getUser();
+  return data.user;
 }
 
-export async function DELETE(
-  request: Request,
-  { params }: { params: { productId: string, orderId: string } }
+/* ---------- PUT /api/products/[productId] ---------- */
+export async function PUT(
+  req: NextRequest,
+  { params }: { params: { productId: string } }
 ) {
-  const supabase = createClient();
+  const user = await getUser();
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { data: { user } } = await supabase.auth.getUser();
-  
-  if (!user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  const body = await req.json().catch(() => null);
+  if (!body) return NextResponse.json({ error: "Bad JSON" }, { status: 400 });
 
-  const productId = params.productId;
-  const orderId = params.orderId;
-
-  const { error } = await supabase
-    .from('products')
-    .delete()
-    .eq('id', productId)
-    .eq('user_uid', user.id)
+  const { data, error } = await supa()
+    .from("products")
+    .update({ ...body, user_uid: user.id })
+    .eq("id", params.productId)
+    .eq("user_uid", user.id)
+    .select()
+    .single();
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    console.error("PRODUCT UPDATE ERROR:", error);           // dev hint
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  const orderDelete = await supabase
-    .from('orders')
+  return NextResponse.json(data);
+}
+
+/* ---------- DELETE /api/products/[productId] ---------- */
+export async function DELETE(
+  _req: NextRequest,
+  { params }: { params: { productId: string } }
+) {
+  const user = await getUser();
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const { error } = await supa()
+    .from("products")
     .delete()
-    .eq('id', orderId)
-    .eq('user_uid', user.id)
+    .eq("id", params.productId)
+    .eq("user_uid", user.id);
 
-  if (orderDelete.error) {
-    return NextResponse.json({ error: orderDelete.error.message }, { status: 500 })
+  if (error) {
+    console.error("PRODUCT DELETE ERROR:", error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json({ message: 'Product and Order deleted successfully' })
+  return NextResponse.json({ message: "Product deleted" });
 }
