@@ -29,10 +29,10 @@ const toNumber = (v: unknown): number =>
   typeof v === "bigint"
     ? Number(v)
     : typeof v === "string"
-    ? parseFloat(v)
-    : typeof v === "number"
-    ? v
-    : 0;
+      ? parseFloat(v)
+      : typeof v === "number"
+        ? v
+        : 0;
 
 export default function Page() {
   const [totalRevenue, setTotalRevenue] = useState(0);
@@ -43,6 +43,8 @@ export default function Page() {
   const [expensesByCategory, setExpensesByCategory] = useState({});
   const [profitMargin, setProfitMargin] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [lowStock, setLowStock] = useState<{ id: number; name: string; in_stock: number; low_stock_threshold: number }[]>([]);
+
 
   useEffect(() => {
     const fetchData = async () => {
@@ -54,7 +56,8 @@ export default function Page() {
           cashFlowRes,
           revenueByCategoryRes,
           expensesByCategoryRes,
-          profitMarginRes
+          profitMarginRes,
+          lowStockRes
         ] = await Promise.all([
           fetch('/api/admin/revenue/total'),
           fetch('/api/admin/expenses/total'),
@@ -62,7 +65,8 @@ export default function Page() {
           fetch('/api/admin/cashflow'),
           fetch('/api/admin/revenue/category'),
           fetch('/api/admin/expenses/category'),
-          fetch('/api/admin/profit/margin')
+          fetch('/api/admin/profit/margin'),
+          fetch('/api/products/low-stock')
         ]);
 
         const revenue = await revenueRes.json();
@@ -72,6 +76,7 @@ export default function Page() {
         const revenueByCategoryData = await revenueByCategoryRes.json();
         const expensesByCategoryData = await expensesByCategoryRes.json();
         const profitMarginData = await profitMarginRes.json();
+        const { lowStock: low } = await lowStockRes.json();
 
         setTotalRevenue(toNumber(revenue.totalRevenue));
         setTotalExpenses(toNumber(expenses.totalExpenses));
@@ -80,6 +85,7 @@ export default function Page() {
         setRevenueByCategory(revenueByCategoryData.revenueByCategory);
         setExpensesByCategory(expensesByCategoryData.expensesByCategory);
         setProfitMargin(profitMarginData.profitMargin);
+        setLowStock(low);
       } catch (error) {
         console.error('Error fetching data:', error);
       } finally {
@@ -101,6 +107,26 @@ export default function Page() {
   return (
     <div className="grid flex-1 items-start gap-4">
       <div className="grid auto-rows-max items-start gap-4 lg:grid-cols-2 xl:grid-cols-3">
+        {lowStock.length > 0 && (
+          <Card className="lg:col-span-2">
+            <CardHeader>
+              <CardTitle>⚠️ Low Stock</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ul className="space-y-1">
+                {lowStock.map((p) => (
+                  <li key={p.id} className="flex justify-between text-sm">
+                    <span>{p.name}</span>
+                    <span className="font-medium text-destructive">
+                      {p.in_stock}/{p.low_stock_threshold}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </CardContent>
+          </Card>
+        )}
+
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
