@@ -24,6 +24,7 @@ import {
   CardContent,
   CardFooter,
   CardHeader,
+  CardTitle,
 } from "@/components/ui/card";
 import {
   SearchIcon,
@@ -60,6 +61,7 @@ interface Product {
   price: number;
   in_stock: number;
   category: string;
+  low_stock_threshold: number;
 }
 
 export default function Products() {
@@ -82,6 +84,8 @@ export default function Products() {
   const [isEditProductDialogOpen, setIsEditProductDialogOpen] = useState(false);
   const [isDeleteConfirmationOpen, setIsDeleteConfirmationOpen] = useState(false);
   const [productToDelete, setProductToDelete] = useState<Product | null>(null);
+  const [productLowStockThreshold, setProductLowStockThreshold] = useState(5); // default 5
+
 
   const resetSelectedProduct = () => {
     setSelectedProductId(null);
@@ -90,6 +94,7 @@ export default function Products() {
     setProductPrice(0);
     setProductInStock(0);
     setProductCategory("");
+    setProductLowStockThreshold(5);
   };
 
   const handleAddProduct = useCallback(async () => {
@@ -100,6 +105,7 @@ export default function Products() {
         price: productPrice,
         in_stock: productInStock,
         category: productCategory,
+        low_stock_threshold: productLowStockThreshold,
       };
       const response = await fetch("/api/products", {
         method: "POST",
@@ -120,7 +126,7 @@ export default function Products() {
     } catch (error) {
       console.error("Error adding product:", error);
     }
-  }, [productName, productDescription, productPrice, productInStock, productCategory, products]);
+  }, [productName, productDescription, productPrice, productInStock, productCategory, productLowStockThreshold, products]);
 
   const handleEditProduct = useCallback(async () => {
     if (!selectedProductId) return;
@@ -132,6 +138,7 @@ export default function Products() {
         price: productPrice,
         in_stock: productInStock,
         category: productCategory,
+        low_stock_threshold: productLowStockThreshold,
       };
       const response = await fetch(`/api/products/${selectedProductId}`, {
         method: "PUT",
@@ -154,7 +161,7 @@ export default function Products() {
     } catch (error) {
       console.error("Error updating product:", error);
     }
-  }, [selectedProductId, productName, productDescription, productPrice, productInStock, productCategory, products]);
+  }, [selectedProductId, productName, productDescription, productPrice, productInStock, productCategory, productLowStockThreshold, products]);
 
   const handleDeleteProduct = useCallback(async () => {
     if (!productToDelete) return;
@@ -246,6 +253,28 @@ export default function Products() {
 
   return (
     <>
+      {products.filter(p => p.in_stock <= p.low_stock_threshold).length > 0 && (
+        <Card className="mb-4">
+          <CardHeader>
+            <CardTitle>⚠️ Low Stock Alert</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ul className="space-y-1 text-sm">
+              {products
+                .filter(p => p.in_stock <= p.low_stock_threshold)
+                .map(p => (
+                  <li key={p.id} className="flex justify-between">
+                    <span>{p.name}</span>
+                    <span className="font-medium text-destructive">
+                      {p.in_stock}/{p.low_stock_threshold}
+                    </span>
+                  </li>
+                ))}
+            </ul>
+          </CardContent>
+        </Card>
+      )}
+
       <Card className="flex flex-col gap-6 p-6">
         <CardHeader className="p-0">
           <div className="flex items-center justify-between">
@@ -317,6 +346,19 @@ export default function Products() {
                   >
                     In Stock
                   </DropdownMenuCheckboxItem>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="low_stock_threshold" className="text-right">
+                      Low Stock Threshold
+                    </Label>
+                    <Input
+                      id="low_stock_threshold"
+                      type="number"
+                      value={productLowStockThreshold}
+                      onChange={(e) => setProductLowStockThreshold(+e.target.value)}
+                      className="col-span-3"
+                    />
+                  </div>
+
                   <DropdownMenuCheckboxItem
                     checked={filters.inStock === "out-of-stock"}
                     onCheckedChange={() =>
@@ -368,6 +410,7 @@ export default function Products() {
                             setProductInStock(product.in_stock);
                             setProductCategory(product.category);
                             setIsEditProductDialogOpen(true);
+                            setProductLowStockThreshold(product.low_stock_threshold);
                           }}
                         >
                           <FilePenIcon className="w-4 h-4" />
@@ -481,6 +524,19 @@ export default function Products() {
                 </SelectContent>
               </Select>
             </div>
+            <div className="space-y-2">
+              <label htmlFor="low_stock_threshold" className="text-sm font-medium">
+                Low Stock Threshold
+              </label>
+              <Input
+                id="low_stock_threshold"
+                name="low_stock_threshold"
+                type="number"
+                value={productLowStockThreshold}
+                onChange={(e) => setProductLowStockThreshold(Number(e.target.value))}
+              />
+            </div>
+
           </div>
           <DialogFooter>
             <Button

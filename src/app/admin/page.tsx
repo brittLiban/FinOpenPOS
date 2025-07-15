@@ -107,7 +107,7 @@ export default function Page() {
   return (
     <div className="grid flex-1 items-start gap-4">
       <div className="grid auto-rows-max items-start gap-4 lg:grid-cols-2 xl:grid-cols-3">
-        {lowStock.length > 0 && (
+        {Array.isArray(lowStock) && lowStock.length > 0 && (
           <Card className="lg:col-span-2">
             <CardHeader>
               <CardTitle>⚠️ Low Stock</CardTitle>
