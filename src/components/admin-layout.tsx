@@ -93,133 +93,108 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
         </DropdownMenu>
       </header>
       <div className="flex flex-col sm:gap-4 sm:py-4 sm:pl-14">
-        <aside className="fixed mt-[56px] inset-y-0 left-0 z-10 hidden w-14 flex-col border-r bg-background sm:flex">
-          <nav className="flex flex-col items-center gap-4 px-2 sm:py-5">
+        <aside className="fixed mt-[56px] inset-y-0 left-0 z-10 hidden sm:flex group w-14 hover:w-48 transition-all duration-200 flex-col border-r bg-background">
+          <nav className="flex flex-col gap-2 px-2 sm:py-5">
             <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Link
-                    href="/admin/returns"
-                    className={`flex h-9 w-9 items-center justify-center rounded-lg ${pathname === "/admin/returns"
-                        ? "bg-accent text-accent-foreground"
-                        : "text-muted-foreground"
-                      } transition-colors hover:text-foreground md:h-8 md:w-8`}
-                  >
-                    <Undo2Icon className="h-5 w-5" />
-                    <span className="sr-only">Returns</span>
-                  </Link>
-                </TooltipTrigger>
-                <TooltipContent side="right">Returns</TooltipContent>
-              </Tooltip>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Link
-                    href="/admin"
-                    className={`flex h-9 w-9 items-center justify-center rounded-lg ${pathname === "/admin"
-                        ? "bg-accent text-accent-foreground"
-                        : "text-muted-foreground"
-                      } transition-colors hover:text-foreground md:h-8 md:w-8`}
-                  >
-                    <LayoutDashboardIcon className="h-5 w-5" />
-                    <span className="sr-only">Dashboard</span>
-                  </Link>
-                </TooltipTrigger>
-                <TooltipContent side="right">Dashboard</TooltipContent>
-              </Tooltip>
-              {/* I ADDED */}
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Link
-                    href="/admin/inventory"
-                    className={`flex h-9 w-9 items-center justify-center rounded-lg ${pathname === "/admin/inventory"
-                        ? "bg-accent text-accent-foreground"
-                        : "text-muted-foreground"
-                      } transition-colors hover:text-foreground md:h-8 md:w-8`}
-                  >
-                    <BoxesIcon className="h-5 w-5" />
-                    <span className="sr-only">Inventory</span>
-                  </Link>
-                </TooltipTrigger>
-                <TooltipContent side="right">Inventory</TooltipContent>
-              </Tooltip>
-
-
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Link
-                    href="/admin/cashier"
-                    className={`flex h-9 w-9 items-center justify-center rounded-lg ${pathname === "/admin/cashier"
-                        ? "bg-accent text-accent-foreground"
-                        : "text-muted-foreground"
-                      } transition-colors hover:text-foreground md:h-8 md:w-8`}
-                  >
-                    <DollarSignIcon className="h-5 w-5" />
-                    <span className="sr-only">Cashier</span>
-                  </Link>
-                </TooltipTrigger>
-                <TooltipContent side="right">Cashier</TooltipContent>
-              </Tooltip>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Link
-                    href="/admin/customers"
-                    className={`flex h-9 w-9 items-center justify-center rounded-lg ${pathname === "/admin/customers"
-                        ? "bg-accent text-accent-foreground"
-                        : "text-muted-foreground"
-                      } transition-colors hover:text-foreground md:h-8 md:w-8`}
-                  >
-                    <UsersIcon className="h-5 w-5" />
-                    <span className="sr-only">Customers</span>
-                  </Link>
-                </TooltipTrigger>
-                <TooltipContent side="right">Customers</TooltipContent>
-              </Tooltip>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Link
-                    href="/admin/orders"
-                    className={`flex h-9 w-9 items-center justify-center rounded-lg ${pathname === "/admin/orders"
-                        ? "bg-accent text-accent-foreground"
-                        : "text-muted-foreground"
-                      } transition-colors hover:text-foreground md:h-8 md:w-8`}
-                  >
-                    <ShoppingBagIcon className="h-5 w-5" />
-                    <span className="sr-only">Orders</span>
-                  </Link>
-                </TooltipTrigger>
-                <TooltipContent side="right">Orders</TooltipContent>
-              </Tooltip>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Link
-                    href="/admin/pos"
-                    className={`flex h-9 w-9 items-center justify-center rounded-lg ${pathname === "/admin/pos"
-                        ? "bg-accent text-accent-foreground"
-                        : "text-muted-foreground"
-                      } transition-colors hover:text-foreground md:h-8 md:w-8`}
-                  >
-                    <ShoppingCartIcon className="h-5 w-5" />
-                    <span className="sr-only">POS</span>
-                  </Link>
-                </TooltipTrigger>
-                <TooltipContent side="right">Point of Sale</TooltipContent>
-              </Tooltip>
-              {/* Check Out I ADDED */}
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Link
-                    href="/admin/checkout"
-                    className={`flex h-9 w-9 items-center justify-center rounded-lg ${pathname === "/admin/checkout"
-                        ? "bg-accent text-accent-foreground"
-                        : "text-muted-foreground"
-                      } transition-colors hover:text-foreground md:h-8 md:w-8`}
-                  >
-                    <CreditCardIcon className="h-5 w-5" />
-                    <span className="sr-only">Checkout</span>
-                  </Link>
-                </TooltipTrigger>
-                <TooltipContent side="right">Checkout</TooltipContent>
-              </Tooltip>
+              {/* Dashboard */}
+              <Link
+                href="/admin"
+                className={`flex items-center h-10 px-3 rounded-lg overflow-hidden whitespace-nowrap ${pathname === "/admin"
+                  ? "bg-accent text-accent-foreground"
+                  : "text-muted-foreground"
+                } transition-colors hover:text-foreground`}
+              >
+                <LayoutDashboardIcon className="h-5 w-5 flex-shrink-0" />
+                <span className="font-medium ml-3 opacity-0 group-hover:opacity-100 group-hover:ml-3 transition-all duration-200 hidden sm:inline">Dashboard</span>
+              </Link>
+              {/* POS */}
+              <Link
+                href="/admin/pos"
+                className={`flex items-center h-10 px-3 rounded-lg overflow-hidden whitespace-nowrap ${pathname === "/admin/pos"
+                  ? "bg-accent text-accent-foreground"
+                  : "text-muted-foreground"
+                } transition-colors hover:text-foreground`}
+              >
+                <ShoppingCartIcon className="h-5 w-5 flex-shrink-0" />
+                <span className="font-medium ml-3 opacity-0 group-hover:opacity-100 group-hover:ml-3 transition-all duration-200 hidden sm:inline">POS</span>
+              </Link>
+              {/* Cashier */}
+              <Link
+                href="/admin/cashier"
+                className={`flex items-center h-10 px-3 rounded-lg overflow-hidden whitespace-nowrap ${pathname === "/admin/cashier"
+                  ? "bg-accent text-accent-foreground"
+                  : "text-muted-foreground"
+                } transition-colors hover:text-foreground`}
+              >
+                <DollarSignIcon className="h-5 w-5 flex-shrink-0" />
+                <span className="font-medium ml-3 opacity-0 group-hover:opacity-100 group-hover:ml-3 transition-all duration-200 hidden sm:inline">Cashier</span>
+              </Link>
+              {/* Products */}
+              <Link
+                href="/admin/products"
+                className={`flex items-center h-10 px-3 rounded-lg overflow-hidden whitespace-nowrap ${pathname === "/admin/products"
+                  ? "bg-accent text-accent-foreground"
+                  : "text-muted-foreground"
+                } transition-colors hover:text-foreground`}
+              >
+                <ShoppingBagIcon className="h-5 w-5 flex-shrink-0" />
+                <span className="font-medium ml-3 opacity-0 group-hover:opacity-100 group-hover:ml-3 transition-all duration-200 hidden sm:inline">Products</span>
+              </Link>
+              {/* Inventory */}
+              <Link
+                href="/admin/inventory"
+                className={`flex items-center h-10 px-3 rounded-lg overflow-hidden whitespace-nowrap ${pathname === "/admin/inventory"
+                  ? "bg-accent text-accent-foreground"
+                  : "text-muted-foreground"
+                } transition-colors hover:text-foreground`}
+              >
+                <BoxesIcon className="h-5 w-5 flex-shrink-0" />
+                <span className="font-medium ml-3 opacity-0 group-hover:opacity-100 group-hover:ml-3 transition-all duration-200 hidden sm:inline">Inventory</span>
+              </Link>
+              {/* Orders */}
+              <Link
+                href="/admin/orders"
+                className={`flex items-center h-10 px-3 rounded-lg overflow-hidden whitespace-nowrap ${pathname === "/admin/orders"
+                  ? "bg-accent text-accent-foreground"
+                  : "text-muted-foreground"
+                } transition-colors hover:text-foreground`}
+              >
+                <ShoppingBagIcon className="h-5 w-5 flex-shrink-0" />
+                <span className="font-medium ml-3 opacity-0 group-hover:opacity-100 group-hover:ml-3 transition-all duration-200 hidden sm:inline">Orders</span>
+              </Link>
+              {/* Customers */}
+              <Link
+                href="/admin/customers"
+                className={`flex items-center h-10 px-3 rounded-lg overflow-hidden whitespace-nowrap ${pathname === "/admin/customers"
+                  ? "bg-accent text-accent-foreground"
+                  : "text-muted-foreground"
+                } transition-colors hover:text-foreground`}
+              >
+                <UsersIcon className="h-5 w-5 flex-shrink-0" />
+                <span className="font-medium ml-3 opacity-0 group-hover:opacity-100 group-hover:ml-3 transition-all duration-200 hidden sm:inline">Customers</span>
+              </Link>
+              {/* Returns */}
+              <Link
+                href="/admin/returns"
+                className={`flex items-center h-10 px-3 rounded-lg overflow-hidden whitespace-nowrap ${pathname === "/admin/returns"
+                  ? "bg-accent text-accent-foreground"
+                  : "text-muted-foreground"
+                } transition-colors hover:text-foreground`}
+              >
+                <Undo2Icon className="h-5 w-5 flex-shrink-0" />
+                <span className="font-medium ml-3 opacity-0 group-hover:opacity-100 group-hover:ml-3 transition-all duration-200 hidden sm:inline">Returns</span>
+              </Link>
+              {/* Checkout */}
+              <Link
+                href="/admin/checkout"
+                className={`flex items-center h-10 px-3 rounded-lg overflow-hidden whitespace-nowrap ${pathname === "/admin/checkout"
+                  ? "bg-accent text-accent-foreground"
+                  : "text-muted-foreground"
+                } transition-colors hover:text-foreground`}
+              >
+                <CreditCardIcon className="h-5 w-5 flex-shrink-0" />
+                <span className="font-medium ml-3 opacity-0 group-hover:opacity-100 group-hover:ml-3 transition-all duration-200 hidden sm:inline">Checkout</span>
+              </Link>
 
             </TooltipProvider>
           </nav>

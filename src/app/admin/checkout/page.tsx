@@ -1,6 +1,8 @@
+
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
+import { BrowserMultiFormatReader } from "@zxing/browser";
 import { Button } from "@/components/ui/button";
 import {
   Card, CardContent, CardHeader, CardTitle
@@ -18,17 +20,61 @@ type Product = {
   name: string;
   price: number;
   in_stock: number;
+  barcode?: string;
+  archived?: boolean;
 };
 type CartItem = Product & { quantity: number };
 
-export default function CheckoutPage() {
+function CheckoutPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [loading, setLoading] = useState(false);
-
   // For OOS confirmation
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  // Barcode scan state
+  const [barcode, setBarcode] = useState("");
+  const [isScanning, setIsScanning] = useState(false);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+
+  // Barcode scan logic
+  const handleStartScan = async () => {
+    setIsScanning(true);
+    try {
+      const codeReader = new BrowserMultiFormatReader();
+      const videoInputDevices = await BrowserMultiFormatReader.listVideoInputDevices();
+      if (videoInputDevices.length === 0) {
+        alert("No camera found");
+        setIsScanning(false);
+        return;
+      }
+      const selectedDeviceId = videoInputDevices[0].deviceId;
+      codeReader.decodeFromVideoDevice(selectedDeviceId, videoRef.current!, (result, err) => {
+        if (result) {
+          setBarcode(result.getText());
+          setIsScanning(false);
+        }
+      });
+    } catch (err) {
+      alert("Barcode scan failed");
+      setIsScanning(false);
+    }
+  };
+
+  const handleStopScan = () => {
+    setIsScanning(false);
+  };
+
+  // Add to cart by barcode
+  useEffect(() => {
+    if (barcode) {
+      const found = products.find((p: Product) => p.barcode === barcode);
+      if (found) {
+        addToCart(found);
+        setBarcode("");
+      }
+    }
+  }, [barcode, products]);
 
   useEffect(() => {
     fetch("/api/products")
@@ -42,9 +88,8 @@ export default function CheckoutPage() {
     setCart(prev => {
       const existing = prev.find(p => p.id === product.id);
       const newQty = (existing?.quantity ?? 0) + 1;
-
-      if (!force && newQty > product.in_stock) {
-        // Won't add unless forced
+      // Won't add unless forced
+      if (!force && existing && newQty > product.in_stock) {
         return prev;
       }
       return existing
@@ -80,13 +125,39 @@ export default function CheckoutPage() {
     <div className="p-6 max-w-4xl mx-auto">
       <Card className="mb-6">
         <CardHeader>
+          <CardTitle>Scan or Enter Barcode</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex gap-2 items-center">
+            <label htmlFor="barcode-input" className="sr-only">Barcode</label>
+            <input
+              id="barcode-input"
+              type="text"
+              value={barcode}
+              onChange={e => setBarcode(e.target.value)}
+              placeholder="Scan or enter barcode"
+              className="border rounded px-2 py-1 flex-1"
+            />
+            <Button type="button" variant="outline" onClick={handleStartScan} disabled={isScanning}>
+              {isScanning ? "Scanning..." : "Scan"}
+            </Button>
+          </div>
+          {isScanning && (
+            <div className="mt-2">
+              <video ref={videoRef} className="w-[300px] h-[200px]" autoPlay muted />
+              <Button type="button" variant="outline" onClick={handleStopScan} className="mt-2">Stop</Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+      <Card className="mb-6">
+        <CardHeader>
           <CardTitle>Products</CardTitle>
         </CardHeader>
         <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {products.filter(p => !p.archived).map(p => {
+          {products.filter((p: Product) => !p.archived).map((p: Product) => {
             const cartQty = getCartQty(p.id);
             const isOut = cartQty >= p.in_stock;
-
             return (
               <div key={p.id} className="flex justify-between items-center">
                 <div>
@@ -128,23 +199,27 @@ export default function CheckoutPage() {
                   <TableRow key={item.id}>
                     <TableCell>{item.name}</TableCell>
                     <TableCell>
-                      <input
-                        type="number"
-                        min={1}
-                        max={item.in_stock}
-                        value={item.quantity}
-                        onChange={e => {
-                          const qty = Number(e.target.value);
-                          if (qty <= item.in_stock) {
-                            setCart(prev =>
-                              prev.map(p => p.id === item.id ? { ...p, quantity: qty } : p)
-                            );
-                          } else {
-                            alert("Exceeds stock!");
-                          }
-                        }}
-                        className="w-16 border rounded px-2"
-                      />
+                    <label htmlFor={`qty-${item.id}`} className="sr-only">Quantity</label>
+                    <input
+                      id={`qty-${item.id}`}
+                      type="number"
+                      min={1}
+                      max={item.in_stock}
+                      value={item.quantity}
+                      onChange={e => {
+                        const qty = Number(e.target.value);
+                        if (qty <= item.in_stock) {
+                          setCart(prev =>
+                            prev.map(p => p.id === item.id ? { ...p, quantity: qty } : p)
+                          );
+                        } else {
+                          alert("Exceeds stock!");
+                        }
+                      }}
+                      className="w-16 border rounded px-2"
+                      placeholder="Qty"
+                      title="Quantity"
+                    />
                     </TableCell>
                     <TableCell>${item.price.toFixed(2)}</TableCell>
                     <TableCell>${(item.price * item.quantity).toFixed(2)}</TableCell>
@@ -186,4 +261,7 @@ export default function CheckoutPage() {
       </Dialog>
     </div>
   );
+
 }
+
+export default CheckoutPage;

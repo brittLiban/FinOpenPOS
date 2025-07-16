@@ -59,6 +59,8 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { BrowserMultiFormatReader } from "@zxing/browser";
+import { useRef } from "react";
 import {
   Select,
   SelectContent,
@@ -113,6 +115,50 @@ export default function Products() {
   const [productInStock, setProductInStock] = useState(0);
   const [productCategory, setProductCategory] = useState("");
   const [customCategory, setCustomCategory] = useState("");
+  const [productBarcode, setProductBarcode] = useState("");
+  const [productImage, setProductImage] = useState<string | null>(null);
+  const [isScanning, setIsScanning] = useState(false);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+
+  // Barcode scanning logic
+  const handleStartScan = async () => {
+    setIsScanning(true);
+    try {
+      const codeReader = new BrowserMultiFormatReader();
+      const videoInputDevices = await BrowserMultiFormatReader.listVideoInputDevices();
+      if (videoInputDevices.length === 0) {
+        alert("No camera found");
+        setIsScanning(false);
+        return;
+      }
+      const selectedDeviceId = videoInputDevices[0].deviceId;
+      codeReader.decodeFromVideoDevice(selectedDeviceId, videoRef.current!, (result, err) => {
+        if (result) {
+          setProductBarcode(result.getText());
+          setIsScanning(false);
+          codeReader.reset();
+        }
+      });
+    } catch (err) {
+      alert("Barcode scan failed");
+      setIsScanning(false);
+    }
+  };
+
+  const handleStopScan = () => {
+    setIsScanning(false);
+  };
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        setProductImage(ev.target?.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
   const [categories, setCategories] = useState(() => ["electronics", "clothing", "books", "home"]);
   const [newCategory, setNewCategory] = useState("");
   const [isEditProductDialogOpen, setIsEditProductDialogOpen] = useState(false);
@@ -145,6 +191,8 @@ export default function Products() {
         in_stock: productInStock,
         category: categoryToUse,
         low_stock_threshold: productLowStockThreshold,
+        barcode: productBarcode,
+        image: productImage,
       };
       const response = await fetch("/api/products", {
         method: "POST",
@@ -178,6 +226,8 @@ export default function Products() {
         in_stock: productInStock,
         category: productCategory,
         low_stock_threshold: productLowStockThreshold,
+        barcode: productBarcode,
+        image: productImage,
       };
       const response = await fetch(`/api/products/${selectedProductId}`, {
         method: "PUT",
@@ -565,6 +615,48 @@ export default function Products() {
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="barcode" className="text-right">
+                Barcode <span className="text-xs text-muted-foreground">(optional)</span>
+              </Label>
+              <div className="col-span-3 flex gap-2 items-center">
+                <Input
+                  id="barcode"
+                  value={productBarcode}
+                  onChange={e => setProductBarcode(e.target.value)}
+                  className="flex-1"
+                  placeholder="Scan or enter barcode"
+                />
+                <Button type="button" variant="outline" onClick={handleStartScan} disabled={isScanning}>
+                  {isScanning ? "Scanning..." : "Scan"}
+                </Button>
+              </div>
+            </div>
+            {isScanning && (
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label className="text-right">Camera</Label>
+                <div className="col-span-3">
+                  <video ref={videoRef} style={{ width: 300, height: 200 }} autoPlay muted />
+                  <Button type="button" variant="outline" onClick={handleStopScan} className="mt-2">Stop</Button>
+                </div>
+              </div>
+            )}
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="image" className="text-right">
+                Product Image <span className="text-xs text-muted-foreground">(optional)</span>
+              </Label>
+              <div className="col-span-3 flex flex-col gap-2">
+                <Input
+                  id="image"
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageChange}
+                />
+                {productImage && (
+                  <img src={productImage} alt="Preview" className="h-24 object-contain border rounded" />
+                )}
+              </div>
+            </div>
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="name" className="text-right">
                 Name
