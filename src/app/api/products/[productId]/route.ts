@@ -1,3 +1,31 @@
+/* ---------- PATCH /api/products/[productId] (archive/unarchive) ---------- */
+export async function PATCH(
+  req: NextRequest,
+  { params }: { params: { productId: string } }
+) {
+  const user = await getUser();
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const body = await req.json().catch(() => null);
+  if (!body || typeof body.archived !== 'boolean') {
+    return NextResponse.json({ error: "Missing or invalid 'archived' property" }, { status: 400 });
+  }
+
+  const { data, error } = await supa()
+    .from("products")
+    .update({ archived: body.archived })
+    .eq("id", params.productId)
+    .eq("user_uid", user.id)
+    .select()
+    .single();
+
+  if (error) {
+    console.error("PRODUCT ARCHIVE ERROR:", error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  return NextResponse.json(data);
+}
 // app/api/products/[productId]/route.ts
 export const runtime = "nodejs";           // ensure pooled Postgres, not edge
 

@@ -1,4 +1,16 @@
 "use client";
+interface Product {
+  id: number;
+  name: string;
+  description: string;
+  price: number;
+  in_stock: number;
+  category: string;
+  low_stock_threshold: number;
+  archived?: boolean;
+}
+
+// Product interface must be declared before any usage
 
 import {
   DropdownMenu,
@@ -18,6 +30,7 @@ import {
   TableBody,
   TableCell,
 } from "@/components/ui/table";
+import { ArchiveIcon, Undo2Icon } from "lucide-react";
 import Link from "next/link";
 import {
   Card,
@@ -54,18 +67,36 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-interface Product {
-  id: number;
-  name: string;
-  description: string;
-  price: number;
-  in_stock: number;
-  category: string;
-  low_stock_threshold: number;
-}
 
 export default function Products() {
+
   const [products, setProducts] = useState<Product[]>([]);
+
+  // Archive dialog state
+  const [isArchiveDialogOpen, setIsArchiveDialogOpen] = useState(false);
+  const [productToArchive, setProductToArchive] = useState<Product | null>(null);
+
+  // Archive handler
+  const handleArchiveProduct = useCallback(async (archive: boolean) => {
+    if (!productToArchive) return;
+    try {
+      const response = await fetch(`/api/products/${productToArchive.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ archived: archive }),
+      });
+      if (response.ok) {
+        const updated = await response.json();
+        setProducts(products.map((p) => (p.id === updated.id ? updated : p)));
+        setIsArchiveDialogOpen(false);
+        setProductToArchive(null);
+      } else {
+        console.error("Failed to archive product");
+      }
+    } catch (error) {
+      console.error("Error archiving product:", error);
+    }
+  }, [productToArchive, products]);
   const [searchTerm, setSearchTerm] = useState("");
   const [filters, setFilters] = useState({
     category: "all",
@@ -390,7 +421,7 @@ export default function Products() {
               </TableHeader>
               <TableBody>
                 {currentProducts.map((product) => (
-                  <TableRow key={product.id}>
+                  <TableRow key={product.id} className={product.archived ? "opacity-50" : ""}>
                     <TableCell className="font-medium">
                       {product.name}
                     </TableCell>
@@ -412,6 +443,7 @@ export default function Products() {
                             setIsEditProductDialogOpen(true);
                             setProductLowStockThreshold(product.low_stock_threshold);
                           }}
+                          disabled={product.archived}
                         >
                           <FilePenIcon className="w-4 h-4" />
                           <span className="sr-only">Edit</span>
@@ -423,14 +455,80 @@ export default function Products() {
                             setProductToDelete(product);
                             setIsDeleteConfirmationOpen(true);
                           }}
+                          disabled={product.archived}
                         >
                           <TrashIcon className="w-4 h-4" />
                           <span className="sr-only">Delete</span>
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => {
+                            setProductToArchive(product);
+                            setIsArchiveDialogOpen(true);
+                          }}
+                        >
+                          {product.archived ? (
+                            <Undo2Icon className="w-4 h-4 text-green-600" />
+                          ) : (
+                            <ArchiveIcon className="w-4 h-4 text-muted-foreground" />
+                          )}
+                          <span className="sr-only">{product.archived ? "Unarchive" : "Archive"}</span>
                         </Button>
                       </div>
                     </TableCell>
                   </TableRow>
                 ))}
+      <Dialog
+        open={isArchiveDialogOpen}
+        onOpenChange={setIsArchiveDialogOpen}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{productToArchive?.archived ? "Unarchive Product" : "Archive Product"}</DialogTitle>
+            <DialogDescription>
+              {productToArchive?.archived
+                ? "Unarchiving will make this product active and visible again."
+                : "Archiving will hide this product from normal view, but it will not be deleted. You can unarchive it later."}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsArchiveDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={() => handleArchiveProduct(!(productToArchive?.archived))}
+            >
+              {productToArchive?.archived ? "Unarchive" : "Archive"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog
+        open={isArchiveDialogOpen}
+        onOpenChange={setIsArchiveDialogOpen}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{productToArchive?.archived ? "Unarchive Product" : "Archive Product"}</DialogTitle>
+            <DialogDescription>
+              {productToArchive?.archived
+                ? "Unarchiving will make this product active and visible again."
+                : "Archiving will hide this product from normal view, but it will not be deleted. You can unarchive it later."}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsArchiveDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={() => handleArchiveProduct(!(productToArchive?.archived))}
+            >
+              {productToArchive?.archived ? "Unarchive" : "Archive"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
               </TableBody>
             </Table>
           </div>
