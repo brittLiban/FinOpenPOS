@@ -65,16 +65,57 @@ function CheckoutPage() {
     setIsScanning(false);
   };
 
-  // Add to cart by barcode
+
+  // Add to cart by barcode, or prompt to add new product if not found
+  const [showAddProduct, setShowAddProduct] = useState(false);
+  const [newProductName, setNewProductName] = useState("");
+  const [newProductPrice, setNewProductPrice] = useState(0);
+  const [newProductStock, setNewProductStock] = useState(1);
+  const [addProductLoading, setAddProductLoading] = useState(false);
+
   useEffect(() => {
     if (barcode) {
       const found = products.find((p: Product) => p.barcode === barcode);
       if (found) {
         addToCart(found);
         setBarcode("");
+      } else {
+        setShowAddProduct(true);
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [barcode, products]);
+
+  const handleAddNewProduct = async () => {
+    setAddProductLoading(true);
+    try {
+      const res = await fetch("/api/products", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: newProductName,
+          price: newProductPrice,
+          in_stock: newProductStock,
+          barcode,
+        }),
+      });
+      if (res.ok) {
+        const added = await res.json();
+        setProducts([...products, added]);
+        addToCart(added);
+        setShowAddProduct(false);
+        setBarcode("");
+        setNewProductName("");
+        setNewProductPrice(0);
+        setNewProductStock(1);
+      } else {
+        alert("Failed to add product");
+      }
+    } catch (e) {
+      alert("Error adding product");
+    }
+    setAddProductLoading(false);
+  };
 
   useEffect(() => {
     fetch("/api/products")
@@ -123,6 +164,39 @@ function CheckoutPage() {
 
   return (
     <div className="p-6 max-w-4xl mx-auto">
+      {/* Add Product Dialog */}
+      <Dialog open={showAddProduct} onOpenChange={setShowAddProduct}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add New Product</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <label className="block mb-1 font-medium">Barcode</label>
+              <input className="border rounded px-2 py-1 w-full" value={barcode} disabled title="Barcode" placeholder="Barcode" />
+            </div>
+            <div>
+              <label className="block mb-1 font-medium">Name</label>
+              <input className="border rounded px-2 py-1 w-full" value={newProductName} onChange={e => setNewProductName(e.target.value)} title="Product Name" placeholder="Product Name" />
+            </div>
+            <div>
+              <label className="block mb-1 font-medium">Price</label>
+              <input type="number" className="border rounded px-2 py-1 w-full" value={newProductPrice} onChange={e => setNewProductPrice(Number(e.target.value))} min={0} title="Price" placeholder="Price" />
+            </div>
+            <div>
+              <label className="block mb-1 font-medium">Stock</label>
+              <input type="number" className="border rounded px-2 py-1 w-full" value={newProductStock} onChange={e => setNewProductStock(Number(e.target.value))} min={1} title="Stock" placeholder="Stock" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setShowAddProduct(false); setBarcode(""); }}>Cancel</Button>
+            <Button onClick={handleAddNewProduct} disabled={addProductLoading}>
+              {addProductLoading ? "Adding..." : "Add Product"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Card className="mb-6">
         <CardHeader>
           <CardTitle>Scan or Enter Barcode</CardTitle>

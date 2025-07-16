@@ -151,6 +151,17 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
                 <BoxesIcon className="h-5 w-5 flex-shrink-0" />
                 <span className="font-medium ml-3 opacity-0 group-hover:opacity-100 group-hover:ml-3 transition-all duration-200 hidden sm:inline">Inventory</span>
               </Link>
+              {/* Inventory Intake */}
+              <Link
+                href="/admin/inventory/intake"
+                className={`flex items-center h-10 px-3 rounded-lg overflow-hidden whitespace-nowrap ${pathname === "/admin/inventory/intake"
+                  ? "bg-accent text-accent-foreground"
+                  : "text-muted-foreground"
+                } transition-colors hover:text-foreground`}
+              >
+                <PackageIcon className="h-5 w-5 flex-shrink-0" />
+                <span className="font-medium ml-3 opacity-0 group-hover:opacity-100 group-hover:ml-3 transition-all duration-200 hidden sm:inline">Inventory Intake</span>
+              </Link>
               {/* Orders */}
               <Link
                 href="/admin/orders"
