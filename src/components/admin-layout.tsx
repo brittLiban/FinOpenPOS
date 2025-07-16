@@ -29,6 +29,7 @@ import {
   ShoppingCartIcon,
   UsersIcon,
   ShoppingBagIcon,
+  Undo2Icon,
 } from "lucide-react";
 
 const pageNames: { [key: string]: string } = {
@@ -40,10 +41,11 @@ const pageNames: { [key: string]: string } = {
   "/admin/cashier": "Cashier",
   "/admin/inventory": "Inventory",
   "/admin/checkout": "Checkout",
+  "/admin/returns": "Returns",
 };
 
 export function AdminLayout({ children }: { children: React.ReactNode }) {
-  const pathname = usePathname();
+  const pathname = usePathname() || "/admin";
 
   return (
     <div className="flex min-h-screen w-full flex-col bg-muted/40">
@@ -55,7 +57,7 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
           <Package2Icon className="h-6 w-6" />
           <span className="sr-only">Admin Panel</span>
         </Link>
-        <h1 className="text-xl font-bold">{pageNames[pathname]}</h1>
+        <h1 className="text-xl font-bold">{pageNames[pathname] || "Dashboard"}</h1>
         <div className="relative ml-auto flex-1 md:grow-0">
           <SearchIcon className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
@@ -94,6 +96,21 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
         <aside className="fixed mt-[56px] inset-y-0 left-0 z-10 hidden w-14 flex-col border-r bg-background sm:flex">
           <nav className="flex flex-col items-center gap-4 px-2 sm:py-5">
             <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Link
+                    href="/admin/returns"
+                    className={`flex h-9 w-9 items-center justify-center rounded-lg ${pathname === "/admin/returns"
+                        ? "bg-accent text-accent-foreground"
+                        : "text-muted-foreground"
+                      } transition-colors hover:text-foreground md:h-8 md:w-8`}
+                  >
+                    <Undo2Icon className="h-5 w-5" />
+                    <span className="sr-only">Returns</span>
+                  </Link>
+                </TooltipTrigger>
+                <TooltipContent side="right">Returns</TooltipContent>
+              </Tooltip>
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Link
@@ -141,21 +158,6 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
                   </Link>
                 </TooltipTrigger>
                 <TooltipContent side="right">Cashier</TooltipContent>
-              </Tooltip>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Link
-                    href="/admin/products"
-                    className={`flex h-9 w-9 items-center justify-center rounded-lg ${pathname === "/admin/products"
-                        ? "bg-accent text-accent-foreground"
-                        : "text-muted-foreground"
-                      } transition-colors hover:text-foreground md:h-8 md:w-8`}
-                  >
-                    <PackageIcon className="h-5 w-5" />
-                    <span className="sr-only">Products</span>
-                  </Link>
-                </TooltipTrigger>
-                <TooltipContent side="right">Products</TooltipContent>
               </Tooltip>
               <Tooltip>
                 <TooltipTrigger asChild>
