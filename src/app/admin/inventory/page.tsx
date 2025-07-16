@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
-interface Product { id: number; name: string; in_stock: number; }
+interface Product { id: number; name: string; in_stock: number; archived?: boolean; }
 
 export default function InventoryPage() {
   const [products, setProducts] = useState<Product[]>([]);
@@ -38,7 +38,7 @@ export default function InventoryPage() {
         <CardContent className="space-y-4">
           {/* product picker */}
           <Combobox
-            items={products}
+            items={products.filter(p => !p.archived)}
             placeholder="Pick product…"
             onSelect={(id) => setSelectedId(Number(id))}
           />
@@ -58,7 +58,7 @@ export default function InventoryPage() {
               <TableRow><TableHead>Product</TableHead><TableHead className="text-right">In Stock</TableHead></TableRow>
             </TableHeader>
             <TableBody>
-              {products.map(p => (
+              {products.filter(p => !p.archived).map(p => (
                 <TableRow key={p.id}>
                   <TableCell>{p.name}</TableCell>
                   <TableCell className="text-right">{p.in_stock}</TableCell>
