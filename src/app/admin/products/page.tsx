@@ -112,6 +112,9 @@ export default function Products() {
   const [productPrice, setProductPrice] = useState(0);
   const [productInStock, setProductInStock] = useState(0);
   const [productCategory, setProductCategory] = useState("");
+  const [customCategory, setCustomCategory] = useState("");
+  const [categories, setCategories] = useState(() => ["electronics", "clothing", "books", "home"]);
+  const [newCategory, setNewCategory] = useState("");
   const [isEditProductDialogOpen, setIsEditProductDialogOpen] = useState(false);
   const [isDeleteConfirmationOpen, setIsDeleteConfirmationOpen] = useState(false);
   const [productToDelete, setProductToDelete] = useState<Product | null>(null);
@@ -130,12 +133,17 @@ export default function Products() {
 
   const handleAddProduct = useCallback(async () => {
     try {
+      const categoryToUse = productCategory === "custom" ? customCategory : productCategory;
+      if (!categoryToUse) {
+        alert("Please select or enter a category.");
+        return;
+      }
       const newProduct = {
         name: productName,
         description: productDescription,
         price: productPrice,
         in_stock: productInStock,
-        category: productCategory,
+        category: categoryToUse,
         low_stock_threshold: productLowStockThreshold,
       };
       const response = await fetch("/api/products", {
@@ -157,7 +165,7 @@ export default function Products() {
     } catch (error) {
       console.error("Error adding product:", error);
     }
-  }, [productName, productDescription, productPrice, productInStock, productCategory, productLowStockThreshold, products]);
+  }, [productName, productDescription, productPrice, productInStock, productCategory, customCategory, productLowStockThreshold, products]);
 
   const handleEditProduct = useCallback(async () => {
     if (!selectedProductId) return;
@@ -607,20 +615,50 @@ export default function Products() {
               <Label htmlFor="category" className="text-right">
                 Category
               </Label>
-              <Select
-                value={productCategory}
-                onValueChange={(value) => setProductCategory(value)}
-              >
-                <SelectTrigger className="col-span-3">
-                  <SelectValue placeholder="Select a category" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="electronics">Electronics</SelectItem>
-                  <SelectItem value="clothing">Clothing</SelectItem>
-                  <SelectItem value="books">Books</SelectItem>
-                  <SelectItem value="home">Home</SelectItem>
-                </SelectContent>
-              </Select>
+              <div className="col-span-3">
+                <Select
+                  value={productCategory}
+                  onValueChange={(value) => {
+                    setProductCategory(value);
+                    if (value !== "custom") setCustomCategory("");
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Array.from(new Set([...categories, ...products.map(p => p.category).filter(Boolean)]))
+                      .map((cat) => (
+                        <SelectItem key={cat} value={cat}>{cat.charAt(0).toUpperCase() + cat.slice(1)}</SelectItem>
+                    ))}
+                    <SelectItem value="custom">Add new category...</SelectItem>
+                  </SelectContent>
+                </Select>
+                {productCategory === "custom" && (
+                  <div className="flex gap-2 mt-2">
+                    <Input
+                      className=""
+                      placeholder="Enter new category"
+                      value={customCategory}
+                      onChange={e => setCustomCategory(e.target.value)}
+                    />
+                    <Button
+                      type="button"
+                      onClick={() => {
+                        const val = customCategory.trim();
+                        if (val && !categories.includes(val)) {
+                          setCategories([...categories, val]);
+                          setProductCategory(val);
+                          setCustomCategory("");
+                        }
+                      }}
+                      variant="outline"
+                    >
+                      Add Category
+                    </Button>
+                  </div>
+                )}
+              </div>
             </div>
             <div className="space-y-2">
               <label htmlFor="low_stock_threshold" className="text-sm font-medium">
