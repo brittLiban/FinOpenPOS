@@ -60,3 +60,27 @@ export async function DELETE(
 
   return NextResponse.json({ message: "Product deleted" });
 }
+
+/* ---------- GET /api/products ---------- */
+export async function GET(req: NextRequest) {
+  const user = await getUser();
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const { searchParams } = new URL(req.url);
+  const limit = searchParams.get("limit") || "100";
+  const offset = searchParams.get("offset") || "0";
+
+  const { data: products, error } = await supa()
+    .from("products")
+    .select()
+    .eq("user_uid", user.id)
+    .order("created_at", { ascending: false })
+    .range(+offset, +offset + +limit - 1);
+
+  if (error) {
+    console.error("PRODUCTS FETCH ERROR:", error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  return NextResponse.json(products);
+}

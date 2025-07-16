@@ -1,3 +1,5 @@
+-- Add archived column to products table
+ALTER TABLE products ADD COLUMN archived boolean NOT NULL DEFAULT false;
 -- Drop tables if they exist
 DROP TABLE IF EXISTS transactions;
 DROP TABLE IF EXISTS order_items;
@@ -6,65 +8,72 @@ DROP TABLE IF EXISTS customers;
 DROP TABLE IF EXISTS products;
 DROP TABLE IF EXISTS payment_methods;
 
--- Create Products table
 CREATE TABLE products (
-    id SERIAL PRIMARY KEY,
-    name VARCHAR(255) NOT NULL,
+    id BIGSERIAL PRIMARY KEY,
+    name TEXT NOT NULL,
     description TEXT,
-    price DECIMAL(10, 2) NOT NULL,
-    in_stock INTEGER NOT NULL,
-    user_uid VARCHAR(255) NOT NULL,
-    category VARCHAR(50)
+    price NUMERIC NOT NULL,
+    in_stock INTEGER DEFAULT 0,
+    user_uid UUID NOT NULL,
+    category TEXT,
+    created_at TIMESTAMPTZ DEFAULT now(),
+    barcode TEXT,
+    low_stock_threshold INTEGER DEFAULT 5,
+    stripe_product_id TEXT,
+    stripe_price_id TEXT,
+    archived BOOLEAN NOT NULL DEFAULT false
 );
 
--- Create Customers table
 CREATE TABLE customers (
-    id SERIAL PRIMARY KEY,
-    name VARCHAR(255) NOT NULL,
-    email VARCHAR(255) NOT NULL UNIQUE,
-    phone VARCHAR(20),
-    user_uid VARCHAR(255) NOT NULL,
-    status VARCHAR(20) CHECK (status IN ('active', 'inactive')),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    id BIGSERIAL PRIMARY KEY,
+    user_uid UUID NOT NULL,
+    name TEXT NOT NULL,
+    email TEXT NOT NULL UNIQUE,
+    phone TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'active',
+    created_at TIMESTAMPTZ DEFAULT now()
 );
 
--- Create Orders table
 CREATE TABLE orders (
-    id SERIAL PRIMARY KEY,
-    customer_id INTEGER REFERENCES customers(id),
-    total_amount DECIMAL(10, 2) NOT NULL,
-    user_uid VARCHAR(255) NOT NULL,
-    status VARCHAR(20) CHECK (status IN ('pending', 'completed', 'cancelled')),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    id BIGSERIAL PRIMARY KEY,
+    customer_id BIGINT REFERENCES customers(id),
+    total_amount NUMERIC NOT NULL,
+    user_uid UUID NOT NULL,
+    status TEXT NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT now(),
+    payment_method_id INTEGER,
+    amount_total BIGINT,
+    stripe_session_id TEXT,
+    customer_email TEXT,
+    customer_name TEXT,
+    payment_method_name TEXT
 );
 
--- Create OrderItems table
 CREATE TABLE order_items (
-    id SERIAL PRIMARY KEY,
-    order_id INTEGER REFERENCES orders(id),
-    product_id INTEGER REFERENCES products(id),
+    id BIGSERIAL PRIMARY KEY,
+    order_id BIGINT REFERENCES orders(id),
+    product_id BIGINT REFERENCES products(id),
     quantity INTEGER NOT NULL,
-    price DECIMAL(10, 2) NOT NULL
+    price NUMERIC NOT NULL,
+    user_uid UUID NOT NULL
 );
 
--- Create PaymentMethods table
 CREATE TABLE payment_methods (
     id SERIAL PRIMARY KEY,
-    name VARCHAR(50) NOT NULL UNIQUE
+    name TEXT NOT NULL UNIQUE
 );
 
--- Create Transactions table
 CREATE TABLE transactions (
-    id SERIAL PRIMARY KEY,
+    id BIGSERIAL PRIMARY KEY,
     description TEXT,
     order_id INTEGER REFERENCES orders(id),
     payment_method_id INTEGER REFERENCES payment_methods(id),
-    amount DECIMAL(10, 2) NOT NULL,
-    user_uid VARCHAR(255) NOT NULL,
-    type VARCHAR(20) CHECK (type IN ('income', 'expense')),
-    category VARCHAR(100),
-    status VARCHAR(20) CHECK (status IN ('pending', 'completed', 'failed')),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    amount NUMERIC NOT NULL,
+    user_uid UUID NOT NULL,
+    type TEXT,
+    category TEXT,
+    status TEXT,
+    created_at TIMESTAMPTZ DEFAULT now()
 );
 
 -- Insert initial payment methods

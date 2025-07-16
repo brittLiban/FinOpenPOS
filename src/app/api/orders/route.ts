@@ -83,21 +83,7 @@ export async function POST(req: NextRequest) {
       }));
       const { error: itemErr } = await supabase.from('order_items').insert(rows);
       if (itemErr) throw itemErr;
-
-      for (const p of products) {
-        const { data: prod, error: prodErr } = await supabase
-          .from('products')
-          .select('in_stock')
-          .eq('id', p.id)
-          .single();
-
-        if (prodErr || !prod) throw new Error(`Stock fetch failed for ${p.id}`);
-
-        await supabase
-          .from('products')
-          .update({ in_stock: prod.in_stock - p.quantity })
-          .eq('id', p.id);
-      }
+      // Inventory decrement removed; handled by Stripe webhook only
     }
 
     await supabase.from('transactions').insert({
