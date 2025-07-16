@@ -284,7 +284,7 @@ export default function Products() {
 
   return (
     <>
-      {products.filter(p => p.in_stock <= p.low_stock_threshold).length > 0 && (
+      {products.filter(p => !p.archived && p.in_stock <= p.low_stock_threshold).length > 0 && (
         <Card className="mb-4">
           <CardHeader>
             <CardTitle>⚠️ Low Stock Alert</CardTitle>
@@ -292,7 +292,7 @@ export default function Products() {
           <CardContent>
             <ul className="space-y-1 text-sm">
               {products
-                .filter(p => p.in_stock <= p.low_stock_threshold)
+                .filter(p => !p.archived && p.in_stock <= p.low_stock_threshold)
                 .map(p => (
                   <li key={p.id} className="flex justify-between">
                     <span>{p.name}</span>

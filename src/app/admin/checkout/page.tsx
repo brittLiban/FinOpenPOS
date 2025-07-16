@@ -83,7 +83,7 @@ export default function CheckoutPage() {
           <CardTitle>Products</CardTitle>
         </CardHeader>
         <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {products.map(p => {
+          {products.filter(p => !p.archived).map(p => {
             const cartQty = getCartQty(p.id);
             const isOut = cartQty >= p.in_stock;
 
