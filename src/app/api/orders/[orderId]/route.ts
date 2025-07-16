@@ -39,9 +39,12 @@ export async function GET(_req: Request, { params }: Params) {
     .eq("user_uid", user.id)
     .single();
 
-  if (error)
+  if (error) {
+    console.error("❌ Supabase error:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
+  }
 
+  console.log("✅ Retrieved order detail:", data);
   return NextResponse.json(data);
 }
 
@@ -137,5 +140,7 @@ export async function DELETE(_req: Request, { params }: Params) {
   } catch (err: any) {
     console.error("DELETE /orders/[id] error:", err);
     return NextResponse.json({ error: err.message }, { status: 500 });
+
+    
   }
 }

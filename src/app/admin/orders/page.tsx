@@ -1,326 +1,290 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
-  Card, CardContent, CardHeader, CardFooter,
+  Card,
+  CardContent,
+  CardHeader,
 } from "@/components/ui/card";
 import {
-  Loader2Icon, PlusCircle, Trash2, SearchIcon, FilePenIcon,
+  Loader2Icon,
+  SearchIcon,
 } from "lucide-react";
 import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
 } from "@/components/ui/table";
-import { Button } from "@/components/ui/button";
-import {
-  Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
-} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from "@/components/ui/select";
-import { Label } from "@/components/ui/label";
-import Link from "next/link";
-
-/* -------------------------------------------------------------------------- */
-/* Types                                                                      */
-/* -------------------------------------------------------------------------- */
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 
 type Order = {
   id: number;
-  customer_id: number;
-  payment_method_id?: number;
+  customer_name?: string;
+  customer_email?: string;
+  payment_method_name?: string;
   total_amount: number;
-  status: "completed" | "pending" | "cancelled";
+  status: string;
   created_at: string;
-  customer: { name: string };
-  payment_method?: { name: string };
 };
 
-
-type Product = { id: number; name: string; price: number };
-
-type ProductSelection = { productId: number; quantity: number; price: number };
-
-/* -------------------------------------------------------------------------- */
+type OrderDetail = Order & {
+  order_items: {
+    product_id: number;
+    quantity: number;
+    price: number;
+    product: { name: string };
+  }[];
+};
 
 export default function OrdersPage() {
-  /* ----------------------------- table states ----------------------------- */
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
   const [searchTerm, setSearchTerm] = useState("");
+  const [filterCustomer, setFilterCustomer] = useState("__all__");
+  const [filterPayment, setFilterPayment] = useState("__all__");
+  const [filterStatus, setFilterStatus] = useState("__all__");
 
-  /* ---------------------------- dialog states ----------------------------- */
-  const [showCreate, setShowCreate] = useState(false);
-  const [showEdit, setShowEdit] = useState(false);
-  const [editingId, setEditingId] = useState<number | null>(null);
+  const [selectedOrder, setSelectedOrder] = useState<OrderDetail | null>(null);
+  const [receiptLoading, setReceiptLoading] = useState(false);
 
-  /* form fields */
-  const [customerId, setCustomerId] = useState("");
-  const [paymentId, setPaymentId] = useState("");
-  const [status, setStatus] = useState<"pending" | "completed" | "cancelled">("pending");
-  const [productSelections, setProductSelections] = useState<ProductSelection[]>([]);
-
-  /* reference data */
-  const [customers, setCustomers] = useState<{ id: number; name: string }[]>([]);
-  const [products, setProducts] = useState<Product[]>([]);
-
-  /* ------------------------------ side-effects ---------------------------- */
   useEffect(() => {
-    (async () => {
-      const res = await fetch("/api/orders"); setOrders(await res.json());
-      const c = await fetch("/api/customers"); setCustomers(await c.json());
-      const p = await fetch("/api/products"); setProducts(await p.json());
-      setLoading(false);
-    })().catch(e => setError(e.message));
+    fetch("/api/orders")
+      .then((res) => res.json())
+      .then((data) => {
+        setOrders(data);
+        setLoading(false);
+      })
+      .catch((e) => setError(e.message));
   }, []);
 
-  /* -------------------------- derived / memoised -------------------------- */
-  const tableFiltered = useMemo(() => {
-    return (Array.isArray(orders) ? orders : []).filter(o =>
-      o.customer.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      o.id.toString().includes(searchTerm)
-    );
-  }, [orders, searchTerm]);
-
-  const total = useMemo(() => productSelections.reduce((sum, sel) => {
-    const prod = products.find(p => p.id === sel.productId);
-    return sum + (prod ? prod.price * sel.quantity : 0);
-  }, 0), [productSelections, products]);
-
-  /* ----------------------------- helpers ---------------------------------- */
-  const resetForm = () => {
-    setCustomerId("");
-    setPaymentId("");
-    setStatus("pending");
-    setProductSelections([]);
-    setEditingId(null);
-  };
-
-  /* ---------------------------- CRUD handlers ----------------------------- */
-  const submitOrder = async () => {
-    const payload = {
-      customer_id: Number(customerId),
-      payment_method_id: Number(paymentId),
-      status,
-      total_amount: total,
-      products: productSelections.map(sel => {
-        const prod = products.find(p => p.id === sel.productId)!;
-        return { id: prod.id, quantity: sel.quantity, price: prod.price };
-      }),
-    };
-
-    const method = editingId ? "PUT" : "POST";
-    const url = editingId ? `/api/orders/${editingId}` : "/api/orders";
-
-    const res = await fetch(url, {
-      method,
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload)
-    });
-
-    if (!res.ok) { alert("Server error"); return; }
-
-    const saved: Order = await res.json();
-    setOrders(prev =>
-      editingId
-        ? prev.map(o => (o.id === saved.id ? saved : o))
-        : [...prev, saved]
-    );
-    setShowCreate(false); setShowEdit(false); resetForm();
-  };
-
-  const deleteOrder = async (id: number) => {
-    if (!confirm("Delete order?")) return;
-    await fetch(`/api/orders/${id}`, { method: "DELETE" });
-    setOrders(prev => prev.filter(o => o.id !== id));
-  };
-
-  /* -------------------------------------------------------------------------- */
-  /* UI                                                                         */
-  /* -------------------------------------------------------------------------- */
-
-  if (loading) return <div className="h-[80vh] flex items-center justify-center">
-    <Loader2Icon className="h-12 w-12 animate-spin" />
-  </div>;
-  if (error) return <p className="text-red-500 p-4">{error}</p>;
-
-  /*****************************************************************
- * 1️⃣  When the Edit button is pressed, pull the full order
- *     (including order_items.price) and pre-populate state.
- *****************************************************************/
-const openEditor = async (orderId: number) => {
-  // ↓ fetch the richer payload we exposed in GET /api/orders/[orderId]
-  const res = await fetch(`/api/orders/${orderId}`);
-  if (!res.ok) {
-    alert("Could not load order details");
-    return;
-  }
-  const order = await res.json() as Order & {
-    order_items: { product_id: number; quantity: number; price: number; product: { name: string } }[];
-  };
-
-  /* --- populate all form fields --- */
-  setEditingId(order.id);
-  setCustomerId(order.customer_id.toString());
-  setPaymentId(order.payment_method_id?.toString() || "");
-  setStatus(order.status as any);
-
-  /* --- preload product rows with saved qty & price --- */
-  setProductSelections(
-    order.order_items.map(item => ({
-      productId: item.product_id,
-      quantity: item.quantity,
-      price: item.price           // ✅ original price
-    }))
+  const uniqueCustomers = useMemo(
+    () =>
+      [...new Set(orders.map((o) => o.customer_name).filter(Boolean))] as string[],
+    [orders]
+  );
+  const uniquePayments = useMemo(
+    () =>
+      [...new Set(orders.map((o) => o.payment_method_name).filter(Boolean))] as string[],
+    [orders]
   );
 
-  setShowEdit(true);
+  const tableFiltered = useMemo(() => {
+    return orders
+      .filter((o) => {
+        const s = searchTerm.toLowerCase();
+        return (
+          (!searchTerm ||
+            (o.customer_name?.toLowerCase().includes(s) ?? false) ||
+            o.id.toString().includes(s)) &&
+          (filterCustomer === "__all__" ||
+            o.customer_name === filterCustomer) &&
+          (filterPayment === "__all__" ||
+            o.payment_method_name === filterPayment) &&
+          (filterStatus === "__all__" || o.status === filterStatus)
+        );
+      })
+      .sort((a, b) => b.id - a.id);
+  }, [orders, searchTerm, filterCustomer, filterPayment, filterStatus]);
+
+const openReceipt = (id: number) => {
+  setReceiptLoading(true);
+  fetch(`/api/orders/${id}`)
+    .then(res => res.json())
+    .then((data: OrderDetail) => {
+      console.log("📦 Order Detail Response:", data); // 👈 This line
+      setSelectedOrder(data);
+      setReceiptLoading(false);
+    })
+    .catch((err) => {
+      console.error("❌ Failed to fetch receipt", err);
+      setSelectedOrder(null);
+      setReceiptLoading(false);
+    });
 };
 
+  if (loading)
+    return (
+      <div className="h-[80vh] flex items-center justify-center">
+        <Loader2Icon className="h-12 w-12 animate-spin" />
+      </div>
+    );
+  if (error) return <p className="text-red-500 p-4">{error}</p>;
 
   return (
-    <Card className="flex flex-col gap-6 p-6">
-      {/* ---------- header / search ---------- */}
-      <CardHeader className="p-0 flex justify-between">
-        <div className="relative">
-          <Input placeholder="Search…" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
-          <SearchIcon className="absolute right-2 top-2 h-4 w-4" />
-        </div>
-        <Button onClick={() => { resetForm(); setShowCreate(true); }}>
-          <PlusCircle className="w-4 h-4 mr-2" /> Create Order
-        </Button>
-      </CardHeader>
-
-      {/* ---------- table ---------- */}
-      <CardContent className="p-0">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>ID</TableHead><TableHead>Customer</TableHead><TableHead>Payment</TableHead>
-              <TableHead>Total</TableHead><TableHead>Status</TableHead>
-              <TableHead>Date</TableHead><TableHead />
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {tableFiltered.map(o => (
-              <TableRow key={o.id}>
-                <TableCell>{o.id}</TableCell>
-                <TableCell>{o.customer.name}</TableCell>
-                <TableCell>{o.payment_method?.name || "—"}</TableCell>
-                <TableCell>${o.total_amount.toFixed(2)}</TableCell>
-                <TableCell>{o.status}</TableCell>
-                <TableCell>{o.created_at}</TableCell>
-                <TableCell className="flex gap-2">
-                  <Button size="icon" variant="ghost"
-                    onClick={() => {
-                      setEditingId(o.id); setCustomerId(o.customer_id.toString());
-                      setPaymentId(o.payment_method_id?.toString() || "");
-                      setStatus(o.status as any);    // you would fetch order items here
-                      setShowEdit(true);
-                    }}>
-                    <FilePenIcon className="h-4 w-4" />
-                  </Button>
-                  <Button size="icon" variant="ghost" onClick={() => deleteOrder(o.id)}>
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </CardContent>
-
-      {/* ---------- dialog create / edit ---------- */}
-      <Dialog open={showCreate || showEdit} onOpenChange={(open) => { if (!open) { setShowCreate(false); setShowEdit(false); resetForm(); } }}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>{editingId ? "Edit" : "Create"} Order</DialogTitle></DialogHeader>
-
-          {/* Customer */}
-          <Label className="mt-2">Customer</Label>
-          <Select value={customerId} onValueChange={setCustomerId}>
-            <SelectTrigger><SelectValue placeholder="Choose customer" /></SelectTrigger>
-            <SelectContent>
-              {customers.map(c => <SelectItem key={c.id} value={c.id.toString()}>{c.name}</SelectItem>)}
-            </SelectContent>
-          </Select>
-
-          {/* Payment */}
-          <Label className="mt-2">Payment method</Label>
-          <Select value={paymentId} onValueChange={setPaymentId}>
-            <SelectTrigger><SelectValue placeholder="Choose…" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="1">Cash</SelectItem>
-              <SelectItem value="2">Visa</SelectItem>
-              <SelectItem value="3">Mastercard</SelectItem>
-              <SelectItem value="4">Check</SelectItem>
-            </SelectContent>
-          </Select>
-
-          {/* Product dropdown */}
-          <Label className="mt-2">Add product</Label>
-          <Select onValueChange={(val) => {
-            const prod = products.find(p => p.id.toString() === val);
-            if (!prod) return;
-            if (!productSelections.find(p => p.productId === prod.id)) {
-              setProductSelections([...productSelections, { productId: prod.id, quantity: 1 }]);
-            }
-          }}>
-            <SelectTrigger><SelectValue placeholder="Select product" /></SelectTrigger>
-            <SelectContent>
-              {products.map(p => (
-                <SelectItem key={p.id} value={p.id.toString()}>
-                  {p.name} – ${p.price}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          {/* Selected products list */}
-          <div className="mt-2 space-y-1">
-            {productSelections.map(sel => {
-              const prod = products.find(p => p.id === sel.productId)!;
-              return (
-                <div key={sel.productId} className="flex items-center gap-2">
-                  <span className="flex-1">{prod.name}</span>
-                  <Input type="number" min={1} value={sel.quantity}
-                    onChange={e => {
-                      const qty = Math.max(1, parseInt(e.target.value) || 1);
-                      setProductSelections(ps => ps.map(p => p.productId === sel.productId ? { ...p, quantity: qty } : p));
-                    }} className="w-16" />
-                  <span>${(prod.price * sel.quantity).toFixed(2)}</span>
-                  <Button size="icon" variant="ghost"
-                    onClick={() => setProductSelections(ps => ps.filter(p => p.productId !== sel.productId))}>
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-              );
-            })}
+    <>
+      <Card className="flex flex-col gap-6 p-6">
+        <CardHeader className="p-0 flex flex-col md:flex-row justify-between gap-4">
+          <div className="relative w-full md:w-1/3">
+            <Input
+              placeholder="Search…"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+            <SearchIcon className="absolute right-2 top-2 h-4 w-4" />
           </div>
+          <div className="flex flex-wrap gap-2 w-full md:w-2/3 items-center">
+            <Select value={filterCustomer} onValueChange={setFilterCustomer}>
+              <SelectTrigger>
+                <SelectValue placeholder="Customer" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__all__">All</SelectItem>
+                {uniqueCustomers.map((c) => (
+                  <SelectItem key={c} value={c}>
+                    {c}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={filterPayment} onValueChange={setFilterPayment}>
+              <SelectTrigger>
+                <SelectValue placeholder="Payment" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__all__">All</SelectItem>
+                {uniquePayments.map((p) => (
+                  <SelectItem key={p} value={p}>
+                    {p}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={filterStatus} onValueChange={setFilterStatus}>
+              <SelectTrigger>
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__all__">All</SelectItem>
+                <SelectItem value="completed">Completed</SelectItem>
+                <SelectItem value="pending">Pending</SelectItem>
+                <SelectItem value="cancelled">Cancelled</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </CardHeader>
 
-          {/* Status */}
-          <Label className="mt-2">Status</Label>
-          <Select value={status} onValueChange={val => setStatus(val as any)}>
-            <SelectTrigger><SelectValue placeholder="Status" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="pending">Pending</SelectItem>
-              <SelectItem value="completed">Completed</SelectItem>
-              <SelectItem value="cancelled">Cancelled</SelectItem>
-            </SelectContent>
-          </Select>
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>ID</TableHead>
+                <TableHead>Customer</TableHead>
+                <TableHead>Email</TableHead>
+                <TableHead>Payment</TableHead>
+                <TableHead>Total</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Date</TableHead>
+                <TableHead>Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {tableFiltered.map((o) => (
+                <TableRow key={o.id}>
+                  <TableCell>{o.id}</TableCell>
+                  <TableCell>{o.customer_name}</TableCell>
+                  <TableCell>{o.customer_email}</TableCell>
+                  <TableCell>{o.payment_method_name}</TableCell>
+                  <TableCell>${o.total_amount.toFixed(2)}</TableCell>
+                  <TableCell>{o.status}</TableCell>
+                  <TableCell>
+                    {new Date(o.created_at).toLocaleString()}
+                  </TableCell>
+                  <TableCell>
+                    <Button size="sm" onClick={() => openReceipt(o.id)}>
+                      View Receipt
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
 
-          {/* Total */}
-          <Label className="mt-2">Total</Label>
-          <Input readOnly value={total.toFixed(2)} />
-
-          <DialogFooter className="pt-4">
-            <Button variant="secondary" onClick={() => { setShowCreate(false); setShowEdit(false); resetForm(); }}>
-              Cancel
-            </Button>
-            <Button onClick={submitOrder}>{editingId ? "Update" : "Create"} Order</Button>
+      <Dialog
+        open={!!selectedOrder}
+        onOpenChange={(open) => !open && setSelectedOrder(null)}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Receipt — Order #{selectedOrder?.id}</DialogTitle>
+            <DialogDescription>
+              {selectedOrder?.customer_name} (
+              {selectedOrder?.customer_email})
+            </DialogDescription>
+          </DialogHeader>
+          {receiptLoading ? (
+            <div className="p-4 text-center">
+              <Loader2Icon className="h-8 w-8 animate-spin" />
+            </div>
+          ) : selectedOrder ? (
+            <div className="space-y-4">
+              <p>
+                <strong>Status:</strong> {selectedOrder.status}
+              </p>
+              <p>
+                <strong>Payment:</strong>{" "}
+                {selectedOrder.payment_method_name}
+              </p>
+              <p>
+                <strong>Date:</strong>{" "}
+                {new Date(selectedOrder.created_at).toLocaleString()}
+              </p>
+              <p>
+                <strong>Total:</strong> $
+                {selectedOrder?.total_amount?.toFixed(2) ?? "0.00"}
+              </p>
+              <hr />
+              <div>
+                <strong>Items:</strong>
+                {selectedOrder.order_items.length ? (
+                  selectedOrder.order_items.map((item) => (
+                    <div
+                      key={item.product_id}
+                      className="flex justify-between"
+                    >
+                      <span>
+                        {item.product.name} × {item.quantity}
+                      </span>
+                      <span>
+                        ${(item.price * item.quantity).toFixed(2)}
+                      </span>
+                    </div>
+                  ))
+                ) : (
+                  <p>No items found.</p>
+                )}
+              </div>
+            </div>
+          ) : (
+            <p>Error loading receipt</p>
+          )}
+          <DialogFooter>
+            <Button onClick={() => setSelectedOrder(null)}>Close</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </Card>
+    </>
   );
 }

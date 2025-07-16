@@ -4,7 +4,7 @@ import { useEffect, useState, useRef } from 'react';
 
 export default function CheckoutSuccessPage() {
   const [sessionDetails, setSessionDetails] = useState<any>(null);
-  const receiptRef = useRef(null);
+  const receiptRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const url = new URL(window.location.href);
@@ -13,7 +13,36 @@ export default function CheckoutSuccessPage() {
     if (sessionId) {
       fetch(`/api/checkout/session?session_id=${sessionId}`)
         .then((res) => res.json())
-        .then((data) => setSessionDetails(data));
+        .then((data) => {
+          setSessionDetails(data);
+
+          const products = data.line_items?.data?.map((item: any) => ({
+            id: item.price?.product?.metadata?.product_id,
+            quantity: item.quantity,
+            price: item.amount_total / 100,
+          })) ?? [];
+
+          const payload = {
+            customer_id: null,
+            customer_name: data.customer_details?.name || "Guest",
+            customer_email: data.customer_details?.email || "",
+            payment_method_name: data.payment_method_types?.[0] || "Card",
+            payment_method_id: null,
+            total_amount: data.amount_total ? data.amount_total / 100 : 0,
+            status: data.payment_status === 'paid' ? 'completed' : 'pending',
+            products,
+            stripe_session_id: data.id,
+          };
+
+          fetch('/api/orders', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          })
+            .then((res) => res.json())
+            .then((json) => console.log('✅ Order posted:', json))
+            .catch((err) => console.error('❌ Order POST failed:', err));
+        });
     }
   }, []);
 
@@ -43,10 +72,7 @@ export default function CheckoutSuccessPage() {
     <div className="p-6">
       <h1 className="text-2xl font-bold mb-4">✅ Payment Successful</h1>
 
-      <div
-        ref={receiptRef}
-        className="bg-white p-6 shadow rounded-md max-w-lg mx-auto text-sm font-mono border"
-      >
+      <div ref={receiptRef} className="bg-white p-6 shadow rounded-md max-w-lg mx-auto text-sm font-mono border">
         <div className="text-center mb-4">
           <h2 className="text-xl font-bold">{business.name}</h2>
           <p>{business.address}</p>
@@ -56,24 +82,24 @@ export default function CheckoutSuccessPage() {
 
         <hr className="my-2" />
 
-        <p><strong>Receipt #: </strong> {sessionDetails.id}</p>
+        <p><strong>Receipt #:</strong> {sessionDetails.id}</p>
         <p><strong>Date:</strong> {new Date().toLocaleString()}</p>
         <p><strong>Status:</strong> {sessionDetails.payment_status}</p>
 
         <hr className="my-2" />
 
         <p className="font-semibold mt-2 mb-1">👤 Customer Info:</p>
-        <p>{sessionDetails.customer_details.name}</p>
-        <p>{sessionDetails.customer_details.email}</p>
+        <p>{sessionDetails.customer_details?.name}</p>
+        <p>{sessionDetails.customer_details?.email}</p>
 
         <hr className="my-2" />
 
         <p className="font-semibold mt-2 mb-1">🛒 Items:</p>
-        {sessionDetails.display_items?.length > 0 ? (
-          sessionDetails.display_items.map((item: any, index: number) => (
-            <div key={index} className="flex justify-between">
-              <span>{item.custom.name}</span>
-              <span>${(item.amount / 100).toFixed(2)}</span>
+        {sessionDetails.line_items?.data?.length > 0 ? (
+          sessionDetails.line_items.data.map((item: any, idx: number) => (
+            <div key={idx} className="flex justify-between">
+              <span>{item.description || item.price.product.name}</span>
+              <span>${(item.amount_total / 100).toFixed(2)}</span>
             </div>
           ))
         ) : (
@@ -84,14 +110,12 @@ export default function CheckoutSuccessPage() {
         )}
 
         <hr className="my-2" />
-
         <div className="flex justify-between font-bold">
           <span>Total</span>
           <span>${(sessionDetails.amount_total / 100).toFixed(2)}</span>
         </div>
 
         <hr className="my-2" />
-
         <p className="text-center mt-4 italic text-xs text-gray-500">
           Thank you for your business! For help, call us at {business.phone}
         </p>
