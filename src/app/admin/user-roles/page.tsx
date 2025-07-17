@@ -19,31 +19,15 @@ export default function UserRolesPage() {
       setLoading(true);
       setError(null);
       const supabase = createClient();
-      // Fetch all users from profiles and join to user_roles and roles
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("id, email, user_roles: user_roles(role_id, roles: roles(name))");
+      // Fetch all users and aggregate their roles
+      const { data, error } = await supabase.rpc('get_users_with_roles');
       if (error) {
         setError(error.message);
         setLoading(false);
         return;
       }
-      // Map to a flat structure for UI, robust to user_roles being empty or not an array
-      const usersFlat = (data || []).map((u: any) => {
-        let role_id = "";
-        let role = "None";
-        if (u.user_roles && Array.isArray(u.user_roles) && u.user_roles.length > 0) {
-          role_id = u.user_roles[0]?.role_id || "";
-          role = u.user_roles[0]?.roles?.name || "None";
-        }
-        return {
-          user_id: u.id,
-          email: u.email,
-          role_id,
-          role
-        };
-      });
-      setUsers(usersFlat);
+      // data: [{ user_id, email, role_names }]
+      setUsers(data || []);
       try {
         const rolesData = await getAllRoles();
         setRoles(rolesData);
@@ -73,16 +57,16 @@ export default function UserRolesPage() {
         .select("id, email, user_roles: user_roles(role_id, roles: roles(name))");
       const usersFlat = (data || []).map((u: any) => {
         let role_id = "";
-        let role = "None";
+        let roles = [];
         if (u.user_roles && Array.isArray(u.user_roles) && u.user_roles.length > 0) {
           role_id = u.user_roles[0]?.role_id || "";
-          role = u.user_roles[0]?.roles?.name || "None";
+          roles = u.user_roles.map((ur: any) => ur.roles?.name).filter(Boolean);
         }
         return {
           user_id: u.id,
           email: u.email,
           role_id,
-          role
+          roles
         };
       });
       setUsers(usersFlat);
@@ -104,39 +88,44 @@ export default function UserRolesPage() {
   return (
     <div className="max-w-2xl mx-auto py-8">
       <h1 className="text-2xl font-bold mb-6">User Roles Management</h1>
+      <div className="mb-4 p-3 bg-yellow-100 text-yellow-800 rounded">
+        After making any changes, please refresh the page to see updates.
+      </div>
       {loading && <div>Loading...</div>}
       {error && <div className="text-red-500 mb-2">{error}</div>}
       {success && <div className="text-green-600 mb-2">{success}</div>}
       {!loading && !error && (
         <div className="space-y-4">
-          {users.length === 0 && <div>No users found.</div>}
+          {users.length === 0 && <div>No profiles found. Please check your database.</div>}
           {users.map((user) => (
             <Card key={user.user_id} className="p-4 flex items-center justify-between gap-4">
-              <div>
-                <div className="font-medium">{user.email || user.user_id}</div>
-                <div className="text-sm text-muted-foreground">Current Role: {user.role}</div>
-              </div>
-              <div className="flex items-center gap-2">
-                <select
-                  className="border rounded px-2 py-1"
-                  value={roleChanges[user.user_id] || user.role_id || ""}
-                  onChange={e => handleRoleChange(user.user_id, Number(e.target.value))}
-                  title="Select role"
-                >
-                  <option value="">Select role</option>
-                  {roles.map((role: any) => (
-                    <option key={role.id} value={role.id}>{role.name}</option>
-                  ))}
-                </select>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={saving === user.user_id || !roleChanges[user.user_id] || roleChanges[user.user_id] === user.role_id}
-                  onClick={() => handleSave(user.user_id)}
-                >
-                  {saving === user.user_id ? "Saving..." : "Save"}
-                </Button>
-              </div>
+          <div>
+            <div className="font-medium">{user.email || user.user_id}</div>
+            <div className="text-sm text-gray-500">
+              {user.role_names ? `Current role: ${user.role_names}` : 'No role assigned'}
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <select
+              className="border rounded px-2 py-1"
+              value={roleChanges[user.user_id] || user.role_id || ""}
+              onChange={e => handleRoleChange(user.user_id, Number(e.target.value))}
+              title="Select role"
+            >
+              <option value="">Select role</option>
+              {roles.map((role: any) => (
+                <option key={role.id} value={role.id}>{role.name}</option>
+              ))}
+            </select>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={saving === user.user_id || !roleChanges[user.user_id] || roleChanges[user.user_id] === user.role_id}
+              onClick={() => handleSave(user.user_id)}
+            >
+              {saving === user.user_id ? "Saving..." : "Save"}
+            </Button>
+          </div>
             </Card>
           ))}
         </div>

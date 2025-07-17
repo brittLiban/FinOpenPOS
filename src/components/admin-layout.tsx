@@ -118,7 +118,7 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
             {user && (
               <div className="px-4 py-2 text-xs text-muted-foreground">
                 <div><b>Email:</b> {user.email}</div>
-                {role && <div><b>Role:</b> {role}</div>}
+                {/* Role removed as requested */}
               </div>
             )}
             <DropdownMenuSeparator />
