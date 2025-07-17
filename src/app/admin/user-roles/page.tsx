@@ -19,14 +19,13 @@ export default function UserRolesPage() {
       setLoading(true);
       setError(null);
       const supabase = createClient();
-      // Fetch all users and aggregate their roles
+      // Fetch all users and aggregate their roles using the working RPC
       const { data, error } = await supabase.rpc('get_users_with_roles');
       if (error) {
         setError(error.message);
         setLoading(false);
         return;
       }
-      // data: [{ user_id, email, role_names }]
       setUsers(data || []);
       try {
         const rolesData = await getAllRoles();

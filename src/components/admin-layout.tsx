@@ -59,21 +59,16 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
     supabase.auth.getUser().then(async ({ data }) => {
       setUser(data.user);
       if (data.user) {
-        // Fetch role directly from user_roles (and roles) table
-        const { data: userRoleData, error } = await supabase
-          .from('user_roles')
-          .select('roles(name)')
-          .eq('user_id', data.user.id)
-          .single();
-        if (error) {
-          setRole('No role found');
-        } else if (userRoleData && userRoleData.roles && Array.isArray(userRoleData.roles) && userRoleData.roles.length > 0) {
-          setRole(userRoleData.roles[0].name);
+        // Use the same RPC as user roles management page
+        const { data: rolesData, error } = await supabase.rpc('get_users_with_roles');
+        if (!error && Array.isArray(rolesData)) {
+          const userRow = rolesData.find((u: any) => u.user_id === data.user.id);
+          setRole(userRow?.role_names || 'No role assigned');
         } else {
-          setRole('No role found');
+          setRole('No role assigned');
         }
       } else {
-        setRole('No role found');
+        setRole('No role assigned');
       }
     });
   }, []);
@@ -118,7 +113,7 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
             {user && (
               <div className="px-4 py-2 text-xs text-muted-foreground">
                 <div><b>Email:</b> {user.email}</div>
-                {/* Role removed as requested */}
+                <div><b>Role:</b> {role || 'No role assigned'}</div>
               </div>
             )}
             <DropdownMenuSeparator />
