@@ -11,6 +11,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuItem,
 } from "@/components/ui/dropdown-menu";
+import { useEffect, useState } from "react";
+import { createClient } from "@/lib/supabase/client";
 import {
   TooltipProvider,
   Tooltip,
@@ -42,10 +44,39 @@ const pageNames: { [key: string]: string } = {
   "/admin/inventory": "Inventory",
   "/admin/checkout": "Checkout",
   "/admin/returns": "Returns",
+  "/admin/employees": "Employees",
 };
+
 
 export function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname() || "/admin";
+  const [user, setUser] = useState<any>(null);
+
+  const [role, setRole] = useState<string>("");
+
+  useEffect(() => {
+    const supabase = createClient();
+    supabase.auth.getUser().then(async ({ data }) => {
+      setUser(data.user);
+      if (data.user) {
+        // Fetch role directly from user_roles (and roles) table
+        const { data: userRoleData, error } = await supabase
+          .from('user_roles')
+          .select('roles(name)')
+          .eq('user_id', data.user.id)
+          .single();
+        if (error) {
+          setRole('No role found');
+        } else if (userRoleData && userRoleData.roles && Array.isArray(userRoleData.roles) && userRoleData.roles.length > 0) {
+          setRole(userRoleData.roles[0].name);
+        } else {
+          setRole('No role found');
+        }
+      } else {
+        setRole('No role found');
+      }
+    });
+  }, []);
 
   return (
     <div className="flex min-h-screen w-full flex-col bg-muted/40">
@@ -84,8 +115,16 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             <DropdownMenuLabel>My Account</DropdownMenuLabel>
+            {user && (
+              <div className="px-4 py-2 text-xs text-muted-foreground">
+                <div><b>Email:</b> {user.email}</div>
+                {role && <div><b>Role:</b> {role}</div>}
+              </div>
+            )}
             <DropdownMenuSeparator />
-            <DropdownMenuItem>Settings</DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link href="/admin/settings">Settings</Link>
+            </DropdownMenuItem>
             <DropdownMenuItem>Support</DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem>Logout</DropdownMenuItem>
@@ -183,6 +222,28 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
               >
                 <UsersIcon className="h-5 w-5 flex-shrink-0" />
                 <span className="font-medium ml-3 opacity-0 group-hover:opacity-100 group-hover:ml-3 transition-all duration-200 hidden sm:inline">Customers</span>
+              </Link>
+              {/* Employees */}
+              <Link
+                href="/admin/employees"
+                className={`flex items-center h-10 px-3 rounded-lg overflow-hidden whitespace-nowrap ${pathname === "/admin/employees"
+                  ? "bg-accent text-accent-foreground"
+                  : "text-muted-foreground"
+                } transition-colors hover:text-foreground`}
+              >
+                <UsersIcon className="h-5 w-5 flex-shrink-0" />
+                <span className="font-medium ml-3 opacity-0 group-hover:opacity-100 group-hover:ml-3 transition-all duration-200 hidden sm:inline">Employees</span>
+              </Link>
+              {/* User Roles Management */}
+              <Link
+                href="/admin/user-roles"
+                className={`flex items-center h-10 px-3 rounded-lg overflow-hidden whitespace-nowrap ${pathname === "/admin/user-roles"
+                  ? "bg-accent text-accent-foreground"
+                  : "text-muted-foreground"
+                } transition-colors hover:text-foreground`}
+              >
+                <UsersIcon className="h-5 w-5 flex-shrink-0" />
+                <span className="font-medium ml-3 opacity-0 group-hover:opacity-100 group-hover:ml-3 transition-all duration-200 hidden sm:inline">User Roles</span>
               </Link>
               {/* Returns */}
               <Link
