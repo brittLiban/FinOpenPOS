@@ -6,7 +6,7 @@ export async function GET() {
 
   const { data, error } = await supabase
     .from('products')
-    .select('id, name, in_stock, low_stock_threshold');
+    .select('id, name, in_stock, low_stock_threshold, archived');
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
@@ -15,7 +15,8 @@ export async function GET() {
   const lowStock = (data ?? []).filter((product) => {
     const inStock = Number(product.in_stock);
     const threshold = Number(product.low_stock_threshold);
-    return !isNaN(inStock) && !isNaN(threshold) && inStock <= threshold;
+    // Exclude archived products from low stock alert
+    return !product.archived && !isNaN(inStock) && !isNaN(threshold) && inStock <= threshold;
   });
 
   return NextResponse.json({ lowStock });

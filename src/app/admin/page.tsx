@@ -34,6 +34,7 @@ const toNumber = (v: unknown): number =>
         ? v
         : 0;
 
+
 export default function Page() {
   const [totalRevenue, setTotalRevenue] = useState(0);
   const [totalExpenses, setTotalExpenses] = useState(0);
@@ -44,7 +45,10 @@ export default function Page() {
   const [profitMargin, setProfitMargin] = useState([]);
   const [loading, setLoading] = useState(true);
   const [lowStock, setLowStock] = useState<{ id: number; name: string; in_stock: number; low_stock_threshold: number }[]>([]);
-
+  const [revenueHistory, setRevenueHistory] = useState<{ date: string; amount: number }[]>([]);
+  const [revenueRange, setRevenueRange] = useState<'1d' | '7d' | '30d' | '3mo' | '6mo' | '1y'>('30d');
+  const [ordersHistory, setOrdersHistory] = useState<{ date: string; count: number }[]>([]);
+  const [ordersRange, setOrdersRange] = useState<'1d' | '7d' | '30d' | '3mo' | '6mo' | '1y'>('30d');
 
   useEffect(() => {
     const fetchData = async () => {
@@ -57,7 +61,9 @@ export default function Page() {
           revenueByCategoryRes,
           expensesByCategoryRes,
           profitMarginRes,
-          lowStockRes
+          lowStockRes,
+          revenueHistoryRes,
+          ordersHistoryRes
         ] = await Promise.all([
           fetch('/api/admin/revenue/total'),
           fetch('/api/admin/expenses/total'),
@@ -66,7 +72,9 @@ export default function Page() {
           fetch('/api/admin/revenue/category'),
           fetch('/api/admin/expenses/category'),
           fetch('/api/admin/profit/margin'),
-          fetch('/api/products/low-stock')
+          fetch('/api/products/low-stock'),
+          fetch(`/api/admin/revenue/history?range=${revenueRange}`),
+          fetch(`/api/admin/orders/history?range=${ordersRange}`)
         ]);
 
         const revenue = await revenueRes.json();
@@ -77,6 +85,8 @@ export default function Page() {
         const expensesByCategoryData = await expensesByCategoryRes.json();
         const profitMarginData = await profitMarginRes.json();
         const { lowStock: low } = await lowStockRes.json();
+        const { history: revenueHistoryData } = await revenueHistoryRes.json();
+        const { history: ordersHistoryData } = await ordersHistoryRes.json();
 
         setTotalRevenue(toNumber(revenue.totalRevenue));
         setTotalExpenses(toNumber(expenses.totalExpenses));
@@ -86,6 +96,8 @@ export default function Page() {
         setExpensesByCategory(expensesByCategoryData.expensesByCategory);
         setProfitMargin(profitMarginData.profitMargin);
         setLowStock(low);
+        setRevenueHistory(revenueHistoryData || []);
+        setOrdersHistory(ordersHistoryData || []);
       } catch (error) {
         console.error('Error fetching data:', error);
       } finally {
@@ -94,7 +106,8 @@ export default function Page() {
     };
 
     fetchData();
-  }, []);
+  }, [revenueRange, ordersRange]);
+
 
   if (loading) {
     return (
@@ -107,6 +120,74 @@ export default function Page() {
   return (
     <div className="grid flex-1 items-start gap-4">
       <div className="grid auto-rows-max items-start gap-4 lg:grid-cols-2 xl:grid-cols-3">
+        {/* Low Stock Card at the very top */}
+        {Array.isArray(lowStock) && lowStock.length > 0 && (
+          <Card className="mb-4 lg:col-span-2">
+            <CardHeader>
+              <CardTitle>⚠️ Low Stock</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ul className="space-y-1">
+                {lowStock.map((p) => (
+                  <li key={p.id} className="flex justify-between text-sm">
+                    <span>{p.name}</span>
+                    <span className="font-medium text-destructive">
+                      {p.in_stock}/{p.low_stock_threshold}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </CardContent>
+          </Card>
+        )}
+        <Card className="col-span-full">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <div>
+              <CardTitle className="text-sm font-medium">Orders Over Time</CardTitle>
+              <div className="text-xs text-muted-foreground mt-1">See how many orders your business is processing.</div>
+            </div>
+            <div className="flex gap-2">
+              <select
+                className="border rounded px-2 py-1 text-xs"
+                value={ordersRange}
+                onChange={e => setOrdersRange(e.target.value as any)}
+                title="Select orders time range"
+              >
+                <option value="1d">Past Day</option>
+                <option value="7d">Past Week</option>
+                <option value="30d">Past 30 Days</option>
+                <option value="3mo">Past 3 Months</option>
+                <option value="6mo">Past 6 Months</option>
+                <option value="1y">Past Year</option>
+              </select>
+              <BarChartIcon className="w-4 h-4 text-muted-foreground" />
+            </div>
+          </CardHeader>
+          <CardContent>
+            <ChartContainer config={{ count: { label: "Orders", color: "#2563eb" } }}>
+              <LineChart width={400} height={180} data={ordersHistory} margin={{ left: 12, right: 12, top: 8, bottom: 8 }}>
+                <CartesianGrid vertical={false} />
+                <XAxis
+                  dataKey="date"
+                  tickLine={false}
+                  axisLine={false}
+                  tickMargin={8}
+                  tickFormatter={(value) => new Date(value).toLocaleDateString()}
+                />
+                <ChartTooltip cursor={false} content={<ChartTooltipContent hideLabel />} />
+                <Line dataKey="count" type="monotone" stroke="#2563eb" strokeWidth={2} dot={false} />
+              </LineChart>
+            </ChartContainer>
+            <div className="text-xs text-muted-foreground mt-2">
+              {ordersRange === '1d' && 'Shows orders for the past 24 hours.'}
+              {ordersRange === '7d' && 'Shows orders for the past 7 days.'}
+              {ordersRange === '30d' && 'Shows orders for the past 30 days.'}
+              {ordersRange === '3mo' && 'Shows orders for the past 3 months.'}
+              {ordersRange === '6mo' && 'Shows orders for the past 6 months.'}
+              {ordersRange === '1y' && 'Shows orders for the past year.'}
+            </div>
+          </CardContent>
+        </Card>
         {Array.isArray(lowStock) && lowStock.length > 0 && (
           <Card className="lg:col-span-2">
             <CardHeader>
@@ -127,13 +208,53 @@ export default function Page() {
           </Card>
         )}
 
-        <Card>
+
+        <Card className="col-span-full">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
-            <DollarSignIcon className="w-4 h-4 text-muted-foreground" />
+            <div>
+              <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
+              <div className="text-xs text-muted-foreground mt-1">Track your revenue trends and spot growth opportunities.</div>
+            </div>
+            <div className="flex gap-2">
+              <select
+                className="border rounded px-2 py-1 text-xs"
+                value={revenueRange}
+                onChange={e => setRevenueRange(e.target.value as any)}
+              >
+                <option value="1d">Past Day</option>
+                <option value="7d">Past Week</option>
+                <option value="30d">Past 30 Days</option>
+                <option value="3mo">Past 3 Months</option>
+                <option value="6mo">Past 6 Months</option>
+                <option value="1y">Past Year</option>
+              </select>
+              <DollarSignIcon className="w-4 h-4 text-muted-foreground" />
+            </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">${toNumber(totalRevenue).toFixed(2)}</div>
+            <div className="text-2xl font-bold mb-2">${toNumber(totalRevenue).toFixed(2)}</div>
+            <ChartContainer config={{ amount: { label: "Revenue", color: "#16a34a" } }}>
+              <LineChart width={400} height={180} data={revenueHistory} margin={{ left: 12, right: 12, top: 8, bottom: 8 }}>
+                <CartesianGrid vertical={false} />
+                <XAxis
+                  dataKey="date"
+                  tickLine={false}
+                  axisLine={false}
+                  tickMargin={8}
+                  tickFormatter={(value) => new Date(value).toLocaleDateString()}
+                />
+                <ChartTooltip cursor={false} content={<ChartTooltipContent hideLabel />} />
+                <Line dataKey="amount" type="monotone" stroke="#16a34a" strokeWidth={2} dot={false} />
+              </LineChart>
+            </ChartContainer>
+            <div className="text-xs text-muted-foreground mt-2">
+              {revenueRange === '1d' && 'Shows revenue for the past 24 hours.'}
+              {revenueRange === '7d' && 'Shows revenue for the past 7 days.'}
+              {revenueRange === '30d' && 'Shows revenue for the past 30 days.'}
+              {revenueRange === '3mo' && 'Shows revenue for the past 3 months.'}
+              {revenueRange === '6mo' && 'Shows revenue for the past 6 months.'}
+              {revenueRange === '1y' && 'Shows revenue for the past year.'}
+            </div>
           </CardContent>
         </Card>
         <Card>

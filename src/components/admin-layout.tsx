@@ -82,10 +82,13 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
           href="/admin"
           className="flex items-center gap-2 text-lg font-semibold"
         >
-          <Package2Icon className="h-6 w-6" />
+          <Image src="/next.svg" alt="Store Logo" width={32} height={32} className="h-8 w-8" />
           <span className="sr-only">Admin Panel</span>
         </Link>
-        <h1 className="text-xl font-bold">{pageNames[pathname] || "Dashboard"}</h1>
+        <div className="flex flex-col items-start justify-center min-w-[180px]">
+          <span className="text-lg font-bold leading-tight">{process.env.NEXT_PUBLIC_BUSINESS_NAME || "FinOpenPOS"}</span>
+          <span className="text-xs text-muted-foreground">{pageNames[pathname] || "Dashboard"}</span>
+        </div>
         <div className="relative ml-auto flex-1 md:grow-0">
           <SearchIcon className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
