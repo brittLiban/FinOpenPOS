@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { createClient } from "@/lib/supabase/client";
 import LanguagePicker from "@/components/language-picker";
 
 export default function SettingsPage() {
@@ -15,16 +16,27 @@ export default function SettingsPage() {
     document.documentElement.classList.toggle("dark", !darkMode);
   };
 
-  const handlePasswordChange = (e: React.FormEvent) => {
+  const [pwChangeStatus, setPwChangeStatus] = useState<string | null>(null);
+  const handlePasswordChange = async (e: React.FormEvent) => {
     e.preventDefault();
+    setPwChangeStatus(null);
     if (password !== confirmPassword) {
-      alert("Passwords do not match");
+      setPwChangeStatus("Passwords do not match");
       return;
     }
-    // TODO: Call your API to change password
-    alert("Password changed!");
-    setPassword("");
-    setConfirmPassword("");
+    if (!password) {
+      setPwChangeStatus("Password cannot be empty");
+      return;
+    }
+    const supabase = createClient();
+    const { error } = await supabase.auth.updateUser({ password });
+    if (error) {
+      setPwChangeStatus(error.message || "Failed to change password");
+    } else {
+      setPwChangeStatus("Password changed successfully!");
+      setPassword("");
+      setConfirmPassword("");
+    }
   };
 
   return (
@@ -62,6 +74,9 @@ export default function SettingsPage() {
         <button type="submit" className="border rounded px-3 py-1 bg-primary text-white">
           Change Password
         </button>
+        {pwChangeStatus && (
+          <div className={pwChangeStatus.includes("success") ? "text-green-600" : "text-red-500"}>{pwChangeStatus}</div>
+        )}
       </form>
     </div>
   );
