@@ -264,59 +264,67 @@ export default function UserRolesPage() {
                 </Button>
               </div>
               {pwResetUser === user.user_id && (
-                <div className="w-full md:w-1/2 mt-2">
-                  <form
-                    className="flex flex-col gap-2 bg-gray-50 p-2 rounded shadow"
-                    onSubmit={async e => {
-                      e.preventDefault();
-                      setPwResetStatus(null);
-                      if (!pwReset || !pwResetConfirm) {
-                        setPwResetStatus("Password and confirmation required");
-                        return;
-                      }
-                      if (pwReset !== pwResetConfirm) {
-                        setPwResetStatus("Passwords do not match");
-                        return;
-                      }
-                      const res = await fetch("/admin/user-roles/change-password-api", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ user_id: user.user_id, password: pwReset }),
-                      });
-                      const data = await res.json();
-                      if (!res.ok) {
-                        setPwResetStatus(data.error || "Failed to change password");
-                      } else {
-                        setPwResetStatus("Password changed successfully!");
-                        setPwReset("");
-                        setPwResetConfirm("");
-                        setTimeout(() => setPwResetUser(null), 1500);
-                      }
-                    }}
-                  >
-                    <input
-                      type="password"
-                      className="border rounded px-2 py-1"
-                      placeholder="New password"
-                      value={pwReset}
-                      onChange={e => setPwReset(e.target.value)}
-                    />
-                    <input
-                      type="password"
-                      className="border rounded px-2 py-1"
-                      placeholder="Confirm password"
-                      value={pwResetConfirm}
-                      onChange={e => setPwResetConfirm(e.target.value)}
-                    />
-                    <div className="flex gap-2">
-                      <Button size="sm" type="submit">Save</Button>
-                      <Button size="sm" variant="ghost" type="button" onClick={() => setPwResetUser(null)}>Cancel</Button>
+                <>
+                  {/* Modal Overlay */}
+                  <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
+                    {/* Modal Content */}
+                    <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-sm relative animate-fade-in">
+                      <form
+                        className="flex flex-col gap-3"
+                        onSubmit={async e => {
+                          e.preventDefault();
+                          setPwResetStatus(null);
+                          if (!pwReset || !pwResetConfirm) {
+                            setPwResetStatus("Password and confirmation required");
+                            return;
+                          }
+                          if (pwReset !== pwResetConfirm) {
+                            setPwResetStatus("Passwords do not match");
+                            return;
+                          }
+                          const res = await fetch("/admin/user-roles/change-password-api", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ user_id: user.user_id, password: pwReset }),
+                          });
+                          const data = await res.json();
+                          if (!res.ok) {
+                            setPwResetStatus(data.error || "Failed to change password");
+                          } else {
+                            setPwResetStatus("Password changed successfully!");
+                            setPwReset("");
+                            setPwResetConfirm("");
+                            setTimeout(() => setPwResetUser(null), 1500);
+                          }
+                        }}
+                      >
+                        <h3 className="text-lg font-semibold mb-2">Change Password</h3>
+                        <input
+                          type="password"
+                          className="border rounded px-3 py-2 focus:outline-none focus:ring focus:border-blue-400"
+                          placeholder="New password"
+                          value={pwReset}
+                          onChange={e => setPwReset(e.target.value)}
+                          autoFocus
+                        />
+                        <input
+                          type="password"
+                          className="border rounded px-3 py-2 focus:outline-none focus:ring focus:border-blue-400"
+                          placeholder="Confirm password"
+                          value={pwResetConfirm}
+                          onChange={e => setPwResetConfirm(e.target.value)}
+                        />
+                        <div className="flex gap-2 mt-2">
+                          <Button size="sm" type="submit">Save</Button>
+                          <Button size="sm" variant="ghost" type="button" onClick={() => setPwResetUser(null)}>Cancel</Button>
+                        </div>
+                        {pwResetStatus && (
+                          <div className={pwResetStatus.includes("success") ? "text-green-600 mt-2" : "text-red-500 mt-2"}>{pwResetStatus}</div>
+                        )}
+                      </form>
                     </div>
-                    {pwResetStatus && (
-                      <div className={pwResetStatus.includes("success") ? "text-green-600" : "text-red-500"}>{pwResetStatus}</div>
-                    )}
-                  </form>
-                </div>
+                  </div>
+                </>
               )}
             </Card>
           ))}
