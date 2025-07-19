@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { logAudit } from "@/lib/log-audit";
 import { NextResponse } from "next/server";
 
 export async function PUT(
@@ -58,6 +59,14 @@ export async function PUT(
 
   console.log("Update affected rows:", data.length); // might be 0
 
+  // Audit log
+  await logAudit({
+    userId: user.id,
+    actionType: 'update',
+    entityType: 'transaction',
+    entityId: transactionId,
+    details: { updated: data[0] }
+  });
   return NextResponse.json(data[0]);
 } // ✅ <-- THIS closing brace was missing
 
@@ -88,5 +97,13 @@ export async function DELETE(
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
+  // Audit log
+  await logAudit({
+    userId: user.id,
+    actionType: 'delete',
+    entityType: 'transaction',
+    entityId: transactionId,
+    details: { message: 'Transaction deleted' }
+  });
   return NextResponse.json({ message: "Transaction deleted successfully" });
 }

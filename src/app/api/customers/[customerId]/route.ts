@@ -31,6 +31,16 @@ export async function PUT(
     return NextResponse.json({ error: 'Customer not found or not authorized' }, { status: 404 })
   }
 
+  // Audit log
+  const { logAudit } = await import("@/lib/log-audit");
+  await logAudit({
+    userId: user.id,
+    actionType: 'update',
+    entityType: 'customer',
+    entityId: String(customerId),
+    details: { updated: data[0] }
+  });
+
   return NextResponse.json(data[0])
 }
 
@@ -57,6 +67,16 @@ export async function DELETE(
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
+
+  // Audit log
+  const { logAudit } = await import("@/lib/log-audit");
+  await logAudit({
+    userId: user.id,
+    actionType: 'delete',
+    entityType: 'customer',
+    entityId: String(customerId),
+    details: { message: 'Customer deleted' }
+  });
 
   return NextResponse.json({ message: 'Customer deleted successfully' })
 }

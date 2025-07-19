@@ -23,6 +23,17 @@ import { NextResponse } from 'next/server';
 import { stripe } from '@/lib/stripe';
 
 export async function POST(req: Request) {
+  // Helper for audit logging
+  const logReturnAudit = async (actionType: string, details: any) => {
+    const { logAudit } = await import("@/lib/log-audit");
+    await logAudit({
+      userId: user.id,
+      actionType,
+      entityType: 'return',
+      entityId: order_id ? String(order_id) : undefined,
+      details
+    });
+  };
   const supabase = createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) {
@@ -44,7 +55,8 @@ export async function POST(req: Request) {
     pid = prod.id;
   }
   if (!order_id || !pid || !quantity) {
-    return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+    await logReturnAudit('return_failed', { reason: 'Missing required fields', order_id, product_id: pid, quantity });
+    return NextResponse.json({ error: 'Missing required fields', details: { order_id, product_id: pid, quantity } }, { status: 400 });
   }
 
   // 1. Get order and product info for refund
@@ -54,7 +66,8 @@ export async function POST(req: Request) {
     .eq('id', order_id)
     .single();
   if (orderError || !order) {
-    return NextResponse.json({ error: 'Order not found' }, { status: 404 });
+    await logReturnAudit('return_failed', { reason: 'Order not found', order_id });
+    return NextResponse.json({ error: 'Order not found', details: { order_id } }, { status: 404 });
   }
   const { data: item, error: itemError } = await supabase
     .from('order_items')
@@ -63,7 +76,8 @@ export async function POST(req: Request) {
     .eq('product_id', pid)
     .single();
   if (itemError || !item) {
-    return NextResponse.json({ error: 'Order item not found' }, { status: 404 });
+    await logReturnAudit('return_failed', { reason: 'Order item not found', order_id, product_id: pid });
+    return NextResponse.json({ error: 'Order item not found', details: { order_id, product_id: pid } }, { status: 404 });
   }
 
   // 2. Refund in Stripe (partial refund for this item * quantity)
@@ -81,6 +95,7 @@ export async function POST(req: Request) {
       }
     }
   } catch (err) {
+    await logReturnAudit('return_failed', { reason: 'Stripe refund failed', order_id, product_id: pid, error: (err as any).message });
     return NextResponse.json({ error: 'Stripe refund failed', details: (err as any).message }, { status: 500 });
   }
 
@@ -91,7 +106,8 @@ export async function POST(req: Request) {
     .select()
     .single();
   if (returnError) {
-    return NextResponse.json({ error: returnError.message }, { status: 500 });
+    await logReturnAudit('return_failed', { reason: 'Failed to record return', order_id, product_id: pid, error: returnError.message });
+    return NextResponse.json({ error: 'Failed to record return', details: returnError.message }, { status: 500 });
   }
   // 4. Update stock
   const { data: product, error: fetchError } = await supabase
@@ -100,7 +116,8 @@ export async function POST(req: Request) {
     .eq('id', pid)
     .single();
   if (fetchError || !product) {
-    return NextResponse.json({ error: fetchError?.message || 'Product not found' }, { status: 500 });
+    await logReturnAudit('return_failed', { reason: 'Failed to fetch product for stock update', order_id, product_id: pid, error: fetchError?.message || 'Product not found' });
+    return NextResponse.json({ error: 'Failed to fetch product for stock update', details: fetchError?.message || 'Product not found' }, { status: 500 });
   }
   const newStock = Number(product.in_stock) + Number(quantity);
   const { error: stockError } = await supabase
@@ -108,8 +125,10 @@ export async function POST(req: Request) {
     .update({ in_stock: newStock })
     .eq('id', pid);
   if (stockError) {
-    return NextResponse.json({ error: stockError.message }, { status: 500 });
+    await logReturnAudit('return_failed', { reason: 'Failed to update product stock', order_id, product_id: pid, error: stockError.message });
+    return NextResponse.json({ error: 'Failed to update product stock', details: stockError.message }, { status: 500 });
   }
+  await logReturnAudit('return', { order_id, product_id: pid, quantity, reason, refund });
   return NextResponse.json({ success: true, return: returnData, refund });
 }
 // ...existing code...

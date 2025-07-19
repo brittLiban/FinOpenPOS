@@ -24,4 +24,5 @@ export const SIDEBAR_ITEMS = [
   { key: "user-roles", label: "User Roles", path: "/admin/user-roles", icon: UsersIcon },
   { key: "returns", label: "Returns", path: "/admin/returns", icon: Undo2Icon },
   { key: "checkout", label: "Checkout", path: "/admin/checkout", icon: CreditCardIcon },
+  { key: "audit-log", label: "Audit Log", path: "/admin/audit-log", icon: BoxesIcon },
 ];

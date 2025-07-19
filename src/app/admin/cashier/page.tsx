@@ -267,7 +267,7 @@ export default function CashierPage() {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuItem>Edit</DropdownMenuItem>
+                        {/* <DropdownMenuItem>Edit</DropdownMenuItem> */}
                         <DropdownMenuItem
                           onClick={() => {
                             setDelId(t.id);

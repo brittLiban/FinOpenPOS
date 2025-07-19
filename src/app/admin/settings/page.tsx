@@ -1,3 +1,4 @@
+
 "use client";
 import { useState, useEffect } from "react";
 import { SIDEBAR_ITEMS } from "@/lib/sidebar-items";
@@ -43,6 +44,7 @@ export default function SettingsPage() {
     }
   };
 
+
   // Sidebar permissions state (admin only)
   const [roles, setRoles] = useState<{ id: number; name: string }[]>([]);
   const [users, setUsers] = useState<any[]>([]);
@@ -52,6 +54,36 @@ export default function SettingsPage() {
   const [loadingPerms, setLoadingPerms] = useState(false);
   const [saveStatus, setSaveStatus] = useState<string | null>(null);
   const [userRole, setUserRole] = useState<string>("");
+
+  // --- Tax rate state (admin only) ---
+  const [taxRate, setTaxRate] = useState<string>("");
+  const [taxStatus, setTaxStatus] = useState<string | null>(null);
+  const [taxLoading, setTaxLoading] = useState(false);
+
+  useEffect(() => {
+    if (userRole !== 'admin') return;
+    setTaxLoading(true);
+    fetch("/api/settings?key=tax_rate")
+      .then(res => res.json())
+      .then(data => {
+        if (data.value !== undefined) setTaxRate(data.value);
+        setTaxLoading(false);
+      })
+      .catch(() => setTaxLoading(false));
+  }, [userRole]);
+
+  const handleSaveTaxRate = async () => {
+    setTaxStatus(null);
+    setTaxLoading(true);
+    const res = await fetch("/api/settings", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ key: "tax_rate", value: taxRate })
+    });
+    const data = await res.json();
+    setTaxStatus(data.success ? "Saved!" : data.error || "Error");
+    setTaxLoading(false);
+  };
 
   // Fetch current user's role
   useEffect(() => {
@@ -197,7 +229,37 @@ export default function SettingsPage() {
           )}
         </div>
       )}
-      {/* ...existing settings UI... */}
+      {/* Tax Rate Setting (Admin Only) */}
+      {userRole === 'admin' && (
+        <div className="mb-8">
+          <h2 className="font-semibold mb-2">Tax Rate (%)</h2>
+          <div className="flex items-center gap-2">
+            <input
+              type="number"
+              min="0"
+              max="100"
+              step="0.01"
+              className="border rounded px-2 py-1 w-32"
+              value={taxRate}
+              onChange={e => setTaxRate(e.target.value)}
+              disabled={taxLoading}
+              placeholder="e.g. 13.00"
+              title="Tax rate percentage"
+            />
+            <button
+              className="border rounded px-3 py-1 bg-primary text-white disabled:opacity-50"
+              onClick={handleSaveTaxRate}
+              disabled={taxLoading}
+            >
+              {taxLoading ? "Saving..." : "Save"}
+            </button>
+            {taxStatus && (
+              <span className={taxStatus === "Saved!" ? "text-green-600" : "text-red-500"}>{taxStatus}</span>
+            )}
+          </div>
+          <p className="text-xs text-muted-foreground mt-1">This tax rate will be applied to all checkouts. Only admins can change it.</p>
+        </div>
+      )}
       <div>
         <h2 className="font-semibold mb-2">Language</h2>
         <LanguagePicker />

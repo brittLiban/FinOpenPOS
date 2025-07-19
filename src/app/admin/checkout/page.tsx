@@ -2,6 +2,7 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
+import { fetchTaxRate } from "@/lib/fetch-tax-rate";
 import { BrowserMultiFormatReader } from "@zxing/browser";
 import { Button } from "@/components/ui/button";
 import {
@@ -26,6 +27,12 @@ type Product = {
 type CartItem = Product & { quantity: number };
 
 function CheckoutPage() {
+  // Tax rate state
+  const [taxRate, setTaxRate] = useState<number>(0);
+  // Fetch tax rate on mount
+  useEffect(() => {
+    fetchTaxRate().then(setTaxRate);
+  }, []);
   const [products, setProducts] = useState<Product[]>([]);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -149,14 +156,19 @@ function CheckoutPage() {
     setConfirmOpen(false);
   };
 
-  const total = cart.reduce((sum, p) => sum + p.price * p.quantity, 0);
+  const [discountPercent, setDiscountPercent] = useState(0);
+  const subtotal = cart.reduce((sum, p) => sum + p.price * p.quantity, 0);
+  const discount = Math.max(0, Math.min(100, discountPercent)) * subtotal / 100;
+  const taxable = Math.max(0, subtotal - discount);
+  const taxAmount = taxRate > 0 ? (taxable * taxRate / 100) : 0;
+  const total = Math.max(0, taxable + taxAmount);
 
   const handleCheckout = async () => {
     setLoading(true);
     const res = await fetch("/api/checkout", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ items: cart }),
+      body: JSON.stringify({ items: cart, discountPercent }),
     });
     const { url } = await res.json();
     window.location.href = url;
@@ -301,7 +313,26 @@ function CheckoutPage() {
                 ))}
               </TableBody>
             </Table>
-            <div className="text-right mt-4 font-bold">Total: ${total.toFixed(2)}</div>
+            <div className="flex flex-col items-end gap-2 mt-4">
+              <div className="flex items-center gap-4">
+                <label className="mr-2 font-medium">Discount (%):</label>
+                <input
+                  type="number"
+                  min={0}
+                  max={100}
+                  value={discountPercent}
+                  onChange={e => setDiscountPercent(Number(e.target.value))}
+                  className="border rounded px-2 py-1 w-24 text-right"
+                  placeholder="0"
+                  title="Discount percentage"
+                />
+              </div>
+              <div className="text-sm text-muted-foreground">Subtotal: ${subtotal.toFixed(2)}</div>
+              <div className="text-sm text-muted-foreground">Discount: -${discount.toFixed(2)}</div>
+              <div className="text-sm text-muted-foreground">Tax Rate: {taxRate.toFixed(2)}%</div>
+              <div className="text-sm text-muted-foreground">Tax: ${taxAmount.toFixed(2)}</div>
+              <div className="font-bold">Total: ${total.toFixed(2)}</div>
+            </div>
             <div className="text-right mt-4">
               <Button onClick={handleCheckout} disabled={loading}>
                 {loading ? "Redirecting..." : "Pay with Card"}

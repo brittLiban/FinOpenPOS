@@ -139,7 +139,7 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
           href="/admin"
           className="flex items-center gap-2 text-lg font-semibold"
         >
-          <Image src="/next.svg" alt="Store Logo" width={32} height={32} className="h-8 w-8" />
+          <Image src="/vercel.svg" alt="Store Logo" width={32} height={32} className="h-8 w-8" />
           <span className="sr-only">Admin Panel</span>
         </Link>
         <div className="flex flex-col items-start justify-center min-w-[180px]">

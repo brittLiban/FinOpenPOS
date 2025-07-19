@@ -44,5 +44,15 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
+  // Audit log
+  const { logAudit } = await import("@/lib/log-audit");
+  await logAudit({
+    userId: user.id,
+    actionType: 'create',
+    entityType: 'customer',
+    entityId: data[0]?.id ? String(data[0].id) : undefined,
+    details: { created: data[0] }
+  });
+
   return NextResponse.json(data[0])
 }

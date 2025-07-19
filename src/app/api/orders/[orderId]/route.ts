@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient }  from "@/lib/supabase/server";
+import { logAudit } from "@/lib/log-audit";
 
 type Params = { params: { orderId: string } };
 
@@ -135,6 +136,15 @@ export async function DELETE(_req: Request, { params }: Params) {
       .eq("user_uid", user.id);
 
     if (error) throw error;
+
+    // Log to audit log
+    await logAudit({
+      userId: user.id,
+      actionType: "delete",
+      entityType: "order",
+      entityId: String(id),
+      details: { message: "Order deleted", orderId: id }
+    });
 
     return NextResponse.json({ success: true });
   } catch (err: any) {

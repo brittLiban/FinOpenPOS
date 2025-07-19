@@ -1,3 +1,4 @@
+import { logAudit } from "@/lib/log-audit";
 /* ---------- PATCH /api/products/[productId] (archive/unarchive) ---------- */
 export async function PATCH(
   req: NextRequest,
@@ -24,6 +25,14 @@ export async function PATCH(
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
+  // Audit log
+  await logAudit({
+    userId: user.id,
+    actionType: 'update',
+    entityType: 'product',
+    entityId: params.productId,
+    details: { updated: data }
+  });
   return NextResponse.json(data);
 }
 // app/api/products/[productId]/route.ts
@@ -55,7 +64,6 @@ export async function PUT(
     .from("products")
     .update({ ...body, user_uid: user.id })
     .eq("id", params.productId)
-    .eq("user_uid", user.id)
     .select()
     .single();
 
@@ -64,6 +72,14 @@ export async function PUT(
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
+  // Audit log
+  await logAudit({
+    userId: user.id,
+    actionType: 'update',
+    entityType: 'product',
+    entityId: params.productId,
+    details: { archived: body.archived, updated: data }
+  });
   return NextResponse.json(data);
 }
 
@@ -86,6 +102,14 @@ export async function DELETE(
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
+  // Audit log
+  await logAudit({
+    userId: user.id,
+    actionType: 'delete',
+    entityType: 'product',
+    entityId: params.productId,
+    details: { message: 'Product deleted' }
+  });
   return NextResponse.json({ message: "Product deleted" });
 }
 

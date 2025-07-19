@@ -88,7 +88,23 @@ function ReturnsPage() {
         }),
       });
       if (!res.ok) {
-        setError("Failed to process return for some items.");
+        let msg = "Failed to process return for some items.";
+        try {
+          const err = await res.json();
+          if (err && err.error) {
+            if (
+              err.error.includes("Stripe refund failed") &&
+              err.details &&
+              typeof err.details === "string" &&
+              err.details.includes("already been refunded")
+            ) {
+              msg = "This order has already been refunded by Stripe.";
+            } else {
+              msg = err.error + (err.details ? ": " + JSON.stringify(err.details) : "");
+            }
+          }
+        } catch {}
+        setError(msg);
         setLoading(false);
         return;
       }

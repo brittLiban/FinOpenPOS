@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useRef } from 'react';
+import { extractTaxAndDiscount } from '@/lib/extract-tax-discount';
 
 export default function CheckoutSuccessPage() {
   const [sessionDetails, setSessionDetails] = useState<any>(null);
@@ -68,6 +69,10 @@ export default function CheckoutSuccessPage() {
     email: process.env.NEXT_PUBLIC_BUSINESS_EMAIL || "support@finopenpos.com",
   };
 
+  // Extract tax/discount from session metadata if present
+  const { taxRate, taxAmount, discount } = extractTaxAndDiscount(sessionDetails);
+  const total = sessionDetails.amount_total ? sessionDetails.amount_total / 100 : 0;
+
   return (
     <div className="p-6">
       <h1 className="text-2xl font-bold mb-4">✅ Payment Successful</h1>
@@ -110,15 +115,28 @@ export default function CheckoutSuccessPage() {
         )}
 
         <hr className="my-2" />
+        {discount > 0 && (
+          <div className="flex justify-between">
+            <span>Discount</span>
+            <span>- ${discount.toFixed(2)}</span>
+          </div>
+        )}
+        {taxRate > 0 && (
+          <div className="flex justify-between">
+            <span>Tax ({taxRate.toFixed(2)}%)</span>
+            <span>${taxAmount.toFixed(2)}</span>
+          </div>
+        )}
         <div className="flex justify-between font-bold">
           <span>Total</span>
-          <span>${(sessionDetails.amount_total / 100).toFixed(2)}</span>
+          <span>${total.toFixed(2)}</span>
         </div>
 
         <hr className="my-2" />
         <p className="text-center mt-4 italic text-xs text-gray-500">
           Thank you for your business! For help, call us at {business.phone}
         </p>
+        <p className="text-center mt-2 text-xs text-gray-400">* Only admins can adjust the tax rate in settings.</p>
       </div>
 
       <button

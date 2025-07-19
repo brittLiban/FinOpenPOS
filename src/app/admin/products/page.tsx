@@ -227,7 +227,7 @@ export default function Products() {
         category: productCategory,
         low_stock_threshold: productLowStockThreshold,
         barcode: productBarcode,
-        image: productImage,
+        // image removed
       };
       const response = await fetch(`/api/products/${selectedProductId}`, {
         method: "PUT",
@@ -245,9 +245,16 @@ export default function Products() {
         setIsEditProductDialogOpen(false);
         resetSelectedProduct();
       } else {
+        let errorMsg = "Failed to update product.";
+        try {
+          const err = await response.json();
+          if (err && err.error) errorMsg += `\n${err.error}`;
+        } catch {}
+        alert(errorMsg);
         console.error("Failed to update product");
       }
     } catch (error) {
+      alert("Error updating product. See console for details.");
       console.error("Error updating product:", error);
     }
   }, [selectedProductId, productName, productDescription, productPrice, productInStock, productCategory, productLowStockThreshold, products]);

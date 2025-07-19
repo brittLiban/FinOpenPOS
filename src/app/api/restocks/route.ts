@@ -32,6 +32,16 @@ export async function POST(req: Request) {
       description: `Restocked ${quantity} × ${prod.name}`,
     });
 
+    // 3️⃣  audit log
+    const { logAudit } = await import("@/lib/log-audit");
+    await logAudit({
+      userId: user.id,
+      actionType: "restock",
+      entityType: "product",
+      entityId: String(product_id),
+      details: { quantity, product: prod }
+    });
+
     return NextResponse.json(prod, { status: 201 });
   } catch (err: any) {
     console.error("POST /restocks error:", err);

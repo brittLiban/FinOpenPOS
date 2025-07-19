@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { logAudit } from '@/lib/log-audit'
 import { NextResponse } from 'next/server'
 
 export async function GET(request: Request) {
@@ -50,5 +51,13 @@ export async function POST(request: Request) {
     // Optional: log this somewhere or notify admin
   }
 
+  // Audit log
+  await logAudit({
+    userId: user.id,
+    actionType: 'create',
+    entityType: 'product',
+    entityId: data[0]?.id ? String(data[0].id) : undefined,
+    details: { newProduct: data[0] }
+  });
   return NextResponse.json(data[0])
 }
