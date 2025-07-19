@@ -23,17 +23,9 @@ import {
 import { usePathname } from "next/navigation";
 import Image from "next/image";
 import {
-  Package2Icon,
-  SearchIcon,
-  LayoutDashboardIcon,
-  DollarSignIcon,
-  PackageIcon,
-  CreditCardIcon,
-  ShoppingCartIcon,
-  UsersIcon,
-  ShoppingBagIcon,
-  Undo2Icon,
+  SearchIcon
 } from "lucide-react";
+import { SIDEBAR_ITEMS } from "@/lib/sidebar-items";
 
 const pageNames: { [key: string]: string } = {
   "/admin": "Dashboard",
@@ -52,9 +44,13 @@ const pageNames: { [key: string]: string } = {
 export function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname() || "/admin";
   const [user, setUser] = useState<any>(null);
-
   const [role, setRole] = useState<string>("");
+  const [roleId, setRoleId] = useState<number | null>(null);
+  const [sidebarPerms, setSidebarPerms] = useState<{ [itemKey: string]: boolean }>({});
   const router = useRouter();
+
+  // Track when sidebarPerms are loaded
+  const [permsLoaded, setPermsLoaded] = useState(false);
 
   useEffect(() => {
     const supabase = createClient();
@@ -66,14 +62,75 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
         if (!error && Array.isArray(rolesData)) {
           const userRow = rolesData.find((u: any) => u.user_id === data.user.id);
           setRole(userRow?.role_names || 'No role assigned');
+          setRoleId(userRow?.role_id || null);
         } else {
           setRole('No role assigned');
+          setRoleId(null);
         }
       } else {
         setRole('No role assigned');
+        setRoleId(null);
       }
     });
   }, []);
+
+  // Fetch sidebar permissions for this role
+  useEffect(() => {
+    if (!user) return;
+    const supabase = createClient();
+    (async () => {
+      // 1. Fetch per-user permissions
+      const { data: userPerms } = await supabase
+        .from("sidebar_permissions")
+        .select("item_key, enabled")
+        .eq("user_id", user.id);
+
+      // 2. Fetch per-role permissions if needed
+      let rolePerms: any[] = [];
+      if (roleId) {
+        const { data: rolePermsData } = await supabase
+          .from("sidebar_permissions")
+          .select("item_key, enabled")
+          .eq("role_id", roleId);
+        rolePerms = rolePermsData || [];
+      }
+
+      const perms: { [itemKey: string]: boolean } = {};
+      SIDEBAR_ITEMS.forEach(item => {
+        if (item.key === 'checkout') {
+          perms[item.key] = true; // Always show checkout
+          return;
+        }
+        // Per-user override takes precedence
+        const userFound = userPerms?.find((row: any) => row.item_key === item.key);
+        if (userFound) {
+          perms[item.key] = userFound.enabled;
+        } else {
+          // Fallback to role-based
+          const roleFound = rolePerms?.find((row: any) => row.item_key === item.key);
+          if (role === 'admin') {
+            perms[item.key] = roleFound ? roleFound.enabled : true;
+          } else {
+            perms[item.key] = roleFound ? roleFound.enabled : false;
+          }
+        }
+      });
+      setSidebarPerms(perms);
+      setPermsLoaded(true);
+    })();
+  }, [user, roleId, role]);
+
+  // Redirect from /admin if user does not have Dashboard access
+  useEffect(() => {
+    if (!permsLoaded) return;
+    if (pathname === "/admin" && sidebarPerms["dashboard"] === false) {
+      // Find first allowed sidebar item
+      const firstAllowed = SIDEBAR_ITEMS.find(item => sidebarPerms[item.key]);
+      if (firstAllowed && firstAllowed.path !== "/admin") {
+        router.replace(firstAllowed.path);
+      }
+    }
+  }, [pathname, sidebarPerms, permsLoaded, router]);
 
   return (
     <div className="flex min-h-screen w-full flex-col bg-muted/40">
@@ -143,139 +200,22 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
         <aside className="fixed mt-[56px] inset-y-0 left-0 z-10 hidden sm:flex group w-14 hover:w-48 transition-all duration-200 flex-col border-r bg-background">
           <nav className="flex flex-col gap-2 px-2 sm:py-5">
             <TooltipProvider>
-              {/* Dashboard */}
-              <Link
-                href="/admin"
-                className={`flex items-center h-10 px-3 rounded-lg overflow-hidden whitespace-nowrap ${pathname === "/admin"
-                  ? "bg-accent text-accent-foreground"
-                  : "text-muted-foreground"
-                } transition-colors hover:text-foreground`}
-              >
-                <LayoutDashboardIcon className="h-5 w-5 flex-shrink-0" />
-                <span className="font-medium ml-3 opacity-0 group-hover:opacity-100 group-hover:ml-3 transition-all duration-200 hidden sm:inline">Dashboard</span>
-              </Link>
-              {/* POS */}
-              <Link
-                href="/admin/pos"
-                className={`flex items-center h-10 px-3 rounded-lg overflow-hidden whitespace-nowrap ${pathname === "/admin/pos"
-                  ? "bg-accent text-accent-foreground"
-                  : "text-muted-foreground"
-                } transition-colors hover:text-foreground`}
-              >
-                <ShoppingCartIcon className="h-5 w-5 flex-shrink-0" />
-                <span className="font-medium ml-3 opacity-0 group-hover:opacity-100 group-hover:ml-3 transition-all duration-200 hidden sm:inline">POS</span>
-              </Link>
-              {/* Cashier */}
-              <Link
-                href="/admin/cashier"
-                className={`flex items-center h-10 px-3 rounded-lg overflow-hidden whitespace-nowrap ${pathname === "/admin/cashier"
-                  ? "bg-accent text-accent-foreground"
-                  : "text-muted-foreground"
-                } transition-colors hover:text-foreground`}
-              >
-                <DollarSignIcon className="h-5 w-5 flex-shrink-0" />
-                <span className="font-medium ml-3 opacity-0 group-hover:opacity-100 group-hover:ml-3 transition-all duration-200 hidden sm:inline">Cashier</span>
-              </Link>
-              {/* Products */}
-              <Link
-                href="/admin/products"
-                className={`flex items-center h-10 px-3 rounded-lg overflow-hidden whitespace-nowrap ${pathname === "/admin/products"
-                  ? "bg-accent text-accent-foreground"
-                  : "text-muted-foreground"
-                } transition-colors hover:text-foreground`}
-              >
-                <ShoppingBagIcon className="h-5 w-5 flex-shrink-0" />
-                <span className="font-medium ml-3 opacity-0 group-hover:opacity-100 group-hover:ml-3 transition-all duration-200 hidden sm:inline">Products</span>
-              </Link>
-              {/* Inventory */}
-              <Link
-                href="/admin/inventory"
-                className={`flex items-center h-10 px-3 rounded-lg overflow-hidden whitespace-nowrap ${pathname === "/admin/inventory"
-                  ? "bg-accent text-accent-foreground"
-                  : "text-muted-foreground"
-                } transition-colors hover:text-foreground`}
-              >
-                <BoxesIcon className="h-5 w-5 flex-shrink-0" />
-                <span className="font-medium ml-3 opacity-0 group-hover:opacity-100 group-hover:ml-3 transition-all duration-200 hidden sm:inline">Inventory</span>
-              </Link>
-              {/* Inventory Intake */}
-              <Link
-                href="/admin/inventory/intake"
-                className={`flex items-center h-10 px-3 rounded-lg overflow-hidden whitespace-nowrap ${pathname === "/admin/inventory/intake"
-                  ? "bg-accent text-accent-foreground"
-                  : "text-muted-foreground"
-                } transition-colors hover:text-foreground`}
-              >
-                <PackageIcon className="h-5 w-5 flex-shrink-0" />
-                <span className="font-medium ml-3 opacity-0 group-hover:opacity-100 group-hover:ml-3 transition-all duration-200 hidden sm:inline">Inventory Intake</span>
-              </Link>
-              {/* Orders */}
-              <Link
-                href="/admin/orders"
-                className={`flex items-center h-10 px-3 rounded-lg overflow-hidden whitespace-nowrap ${pathname === "/admin/orders"
-                  ? "bg-accent text-accent-foreground"
-                  : "text-muted-foreground"
-                } transition-colors hover:text-foreground`}
-              >
-                <ShoppingBagIcon className="h-5 w-5 flex-shrink-0" />
-                <span className="font-medium ml-3 opacity-0 group-hover:opacity-100 group-hover:ml-3 transition-all duration-200 hidden sm:inline">Orders</span>
-              </Link>
-              {/* Customers */}
-              <Link
-                href="/admin/customers"
-                className={`flex items-center h-10 px-3 rounded-lg overflow-hidden whitespace-nowrap ${pathname === "/admin/customers"
-                  ? "bg-accent text-accent-foreground"
-                  : "text-muted-foreground"
-                } transition-colors hover:text-foreground`}
-              >
-                <UsersIcon className="h-5 w-5 flex-shrink-0" />
-                <span className="font-medium ml-3 opacity-0 group-hover:opacity-100 group-hover:ml-3 transition-all duration-200 hidden sm:inline">Customers</span>
-              </Link>
-              {/* Employees */}
-              <Link
-                href="/admin/employees"
-                className={`flex items-center h-10 px-3 rounded-lg overflow-hidden whitespace-nowrap ${pathname === "/admin/employees"
-                  ? "bg-accent text-accent-foreground"
-                  : "text-muted-foreground"
-                } transition-colors hover:text-foreground`}
-              >
-                <UsersIcon className="h-5 w-5 flex-shrink-0" />
-                <span className="font-medium ml-3 opacity-0 group-hover:opacity-100 group-hover:ml-3 transition-all duration-200 hidden sm:inline">Employees</span>
-              </Link>
-              {/* User Roles Management */}
-              <Link
-                href="/admin/user-roles"
-                className={`flex items-center h-10 px-3 rounded-lg overflow-hidden whitespace-nowrap ${pathname === "/admin/user-roles"
-                  ? "bg-accent text-accent-foreground"
-                  : "text-muted-foreground"
-                } transition-colors hover:text-foreground`}
-              >
-                <UsersIcon className="h-5 w-5 flex-shrink-0" />
-                <span className="font-medium ml-3 opacity-0 group-hover:opacity-100 group-hover:ml-3 transition-all duration-200 hidden sm:inline">User Roles</span>
-              </Link>
-              {/* Returns */}
-              <Link
-                href="/admin/returns"
-                className={`flex items-center h-10 px-3 rounded-lg overflow-hidden whitespace-nowrap ${pathname === "/admin/returns"
-                  ? "bg-accent text-accent-foreground"
-                  : "text-muted-foreground"
-                } transition-colors hover:text-foreground`}
-              >
-                <Undo2Icon className="h-5 w-5 flex-shrink-0" />
-                <span className="font-medium ml-3 opacity-0 group-hover:opacity-100 group-hover:ml-3 transition-all duration-200 hidden sm:inline">Returns</span>
-              </Link>
-              {/* Checkout */}
-              <Link
-                href="/admin/checkout"
-                className={`flex items-center h-10 px-3 rounded-lg overflow-hidden whitespace-nowrap ${pathname === "/admin/checkout"
-                  ? "bg-accent text-accent-foreground"
-                  : "text-muted-foreground"
-                } transition-colors hover:text-foreground`}
-              >
-                <CreditCardIcon className="h-5 w-5 flex-shrink-0" />
-                <span className="font-medium ml-3 opacity-0 group-hover:opacity-100 group-hover:ml-3 transition-all duration-200 hidden sm:inline">Checkout</span>
-              </Link>
-
+              {SIDEBAR_ITEMS.filter(item => sidebarPerms[item.key] !== false).map(item => {
+                const Icon = item.icon;
+                return (
+                  <Link
+                    key={item.key}
+                    href={item.path}
+                    className={`flex items-center h-10 px-3 rounded-lg overflow-hidden whitespace-nowrap ${pathname === item.path
+                      ? "bg-accent text-accent-foreground"
+                      : "text-muted-foreground"
+                    } transition-colors hover:text-foreground`}
+                  >
+                    <Icon className="h-5 w-5 flex-shrink-0" />
+                    <span className="font-medium ml-3 opacity-0 group-hover:opacity-100 group-hover:ml-3 transition-all duration-200 hidden sm:inline">{item.label}</span>
+                  </Link>
+                );
+              })}
             </TooltipProvider>
           </nav>
         </aside>

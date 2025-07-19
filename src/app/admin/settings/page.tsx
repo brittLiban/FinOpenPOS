@@ -1,7 +1,11 @@
 "use client";
-import { useState } from "react";
-import { createClient } from "@/lib/supabase/client";
+import { useState, useEffect } from "react";
+import { SIDEBAR_ITEMS } from "@/lib/sidebar-items";
+import { getAllRoles } from "@/app/admin/user-roles/role-utils";
+// import { createClient } from "@/lib/supabase/client";
 import LanguagePicker from "@/components/language-picker";
+
+import { createClient } from "@/lib/supabase/client";
 
 export default function SettingsPage() {
   // For dark mode toggle (simple local state, you may want to use context or next-themes for real app)
@@ -39,9 +43,161 @@ export default function SettingsPage() {
     }
   };
 
+  // Sidebar permissions state (admin only)
+  const [roles, setRoles] = useState<{ id: number; name: string }[]>([]);
+  const [users, setUsers] = useState<any[]>([]);
+  const [selectedRole, setSelectedRole] = useState<number | null>(null);
+  const [selectedUser, setSelectedUser] = useState<string | null>(null);
+  const [sidebarPerms, setSidebarPerms] = useState<{ [itemKey: string]: boolean }>({});
+  const [loadingPerms, setLoadingPerms] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<string | null>(null);
+  const [userRole, setUserRole] = useState<string>("");
+
+  // Fetch current user's role
+  useEffect(() => {
+    const supabase = createClient();
+    supabase.auth.getUser().then(async ({ data }) => {
+      if (data.user) {
+        const { data: rolesData, error } = await supabase.rpc('get_users_with_roles');
+        if (!error && Array.isArray(rolesData)) {
+          const userRow = rolesData.find((u: any) => u.user_id === data.user.id);
+          setUserRole(userRow?.role_names || '');
+        }
+      }
+    });
+  }, []);
+
+  // Fetch roles and users on mount (admin only)
+  useEffect(() => {
+    if (userRole !== 'admin') return;
+    getAllRoles().then(setRoles);
+    // Fetch all users for per-user permissions
+    const supabase = createClient();
+    supabase.rpc('get_users_with_roles').then(({ data }) => {
+      setUsers(Array.isArray(data) ? data : []);
+    });
+  }, [userRole]);
+
+  // Fetch sidebar permissions for selected role or user (admin only)
+  useEffect(() => {
+    if (userRole !== 'admin') return;
+    setLoadingPerms(true);
+    const supabase = createClient();
+    (async () => {
+      let data = null;
+      if (selectedUser) {
+        // Per-user permissions
+        const res = await supabase
+          .from("sidebar_permissions")
+          .select("item_key, enabled")
+          .eq("user_id", selectedUser);
+        data = res.data;
+      } else if (selectedRole) {
+        // Per-role permissions
+        const res = await supabase
+          .from("sidebar_permissions")
+          .select("item_key, enabled")
+          .eq("role_id", selectedRole);
+        data = res.data;
+      }
+      const perms: { [itemKey: string]: boolean } = {};
+      SIDEBAR_ITEMS.forEach(item => {
+        const found = data?.find((row: any) => row.item_key === item.key);
+        perms[item.key] = found ? found.enabled : true;
+      });
+      setSidebarPerms(perms);
+      setLoadingPerms(false);
+    })();
+  }, [selectedRole, selectedUser, userRole]);
+
+  // Save sidebar permissions (admin only)
+  const handleSaveSidebarPerms = async () => {
+    if (userRole !== 'admin' || (!selectedRole && !selectedUser)) return;
+    setSaveStatus(null);
+    setLoadingPerms(true);
+    const supabase = createClient();
+    // Upsert all sidebar permissions for this role or user
+    const updates = SIDEBAR_ITEMS.map(item => ({
+      role_id: selectedUser ? null : selectedRole,
+      user_id: selectedUser || null,
+      item_key: item.key,
+      enabled: !!sidebarPerms[item.key],
+    }));
+    const { error } = await supabase.from("sidebar_permissions").upsert(updates, { onConflict: selectedUser ? "user_id,item_key" : "role_id,item_key" });
+    setLoadingPerms(false);
+    setSaveStatus(error ? error.message : "Saved!");
+  };
+
   return (
-    <div className="max-w-lg mx-auto p-6 space-y-8">
+    <div className="max-w-2xl mx-auto p-6 space-y-8">
       <h1 className="text-2xl font-bold mb-4">Settings</h1>
+      {userRole === 'admin' && (
+        <div>
+          <h2 className="font-semibold mb-2">Sidebar Permissions (Admin Only)</h2>
+          <div className="mb-2 flex gap-4">
+            <div>
+              <label className="font-medium mr-2">Role:</label>
+              <select
+                className="border rounded px-2 py-1"
+                value={selectedRole ?? ""}
+                onChange={e => {
+                  setSelectedRole(Number(e.target.value));
+                  setSelectedUser(null);
+                }}
+                title="Select role"
+              >
+                <option value="">Select role</option>
+                {roles.map(r => (
+                  <option key={r.id} value={r.id}>{r.name}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="font-medium mr-2">User:</label>
+              <select
+                className="border rounded px-2 py-1"
+                value={selectedUser ?? ""}
+                onChange={e => {
+                  setSelectedUser(e.target.value || null);
+                  setSelectedRole(null);
+                }}
+                title="Select user"
+              >
+                <option value="">Select user</option>
+                {users.map(u => (
+                  <option key={u.user_id} value={u.user_id}>{u.email || u.user_id}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+          {(selectedRole || selectedUser) && (
+            <div className="space-y-2 border rounded p-4 bg-muted/30">
+              {SIDEBAR_ITEMS.map(item => (
+                <label key={item.key} className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={!!sidebarPerms[item.key]}
+                    onChange={e => setSidebarPerms(p => ({ ...p, [item.key]: e.target.checked }))}
+                    disabled={loadingPerms}
+                  />
+                  <span>{item.label}</span>
+                </label>
+              ))}
+              <button
+                className="mt-4 border rounded px-3 py-1 bg-primary text-white disabled:opacity-50"
+                onClick={handleSaveSidebarPerms}
+                disabled={loadingPerms}
+              >
+                {loadingPerms ? "Saving..." : "Save"}
+              </button>
+              {saveStatus && (
+                <div className={saveStatus === "Saved!" ? "text-green-600" : "text-red-500"}>{saveStatus}</div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+      {/* ...existing settings UI... */}
       <div>
         <h2 className="font-semibold mb-2">Language</h2>
         <LanguagePicker />
