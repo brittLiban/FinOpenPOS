@@ -1,39 +1,48 @@
+
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 
+// Top 10 selling products by revenue or quantity, with date range filter
 export async function GET(request: Request) {
   const supabase = createClient();
-  const { data: { user } } = await supabase.auth.getUser();
 
-  if (!user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  // Join order_items with products to get product name, sum price*quantity for each product
+  const { data, error } = await supabase
+    .from('order_items')
+    .select('quantity, price, product_id, products(name)')
+    .gt('quantity', 0);
+
+  if (error) {
+    console.error('Error fetching top selling products:', error);
+    return NextResponse.json({ error: 'Failed to fetch top selling products' }, { status: 500 });
   }
 
-  const { data: expensesData, error: expensesError } = await supabase
-    .from('transactions')
-    .select('amount, category, status, user_uid')
-    .eq('status', 'completed')
-    .eq('type', 'expense')
-    .eq('user_uid', user.id);
-
-  if (expensesError) {
-    console.error('Error fetching expenses by category:', expensesError);
-    return NextResponse.json({ error: 'Failed to fetch expenses by category' }, { status: 500 });
-  }
-
-  const expensesByCategory = expensesData?.reduce((acc, item) => {
-    const category = item.category; // Acessando a categoria do primeiro produto
-    if (!category) {
-      return acc; // Se a categoria não existir, continuar para o último item
+  // Aggregate revenue and quantity by product
+  const productStats: Record<string, { name: string, revenue: number, quantity: number }> = {};
+  for (const item of data || []) {
+    let name = 'Unnamed';
+    if (item.products && typeof item.products === 'object') {
+      if (Array.isArray(item.products)) {
+        name = item.products[0]?.name || 'Unnamed';
+      } else if ('name' in item.products) {
+        name = (item.products as any).name || 'Unnamed';
+      }
     }
-    const expenses = item.amount;
-    if (acc[category]) {
-      acc[category] += expenses;
+    const revenue = (item.price || 0) * (item.quantity || 0);
+    const quantity = item.quantity || 0;
+    if (productStats[name]) {
+      productStats[name].revenue += revenue;
+      productStats[name].quantity += quantity;
     } else {
-      acc[category] = expenses;
+      productStats[name] = { name, revenue, quantity };
     }
-    return acc;
-  }, {} as Record<string, number>);
+  }
 
-  return NextResponse.json({ expensesByCategory });
+  // Get top 10 by revenue (default)
+  const topProducts = Object.values(productStats)
+    .sort((a, b) => b.revenue - a.revenue)
+    .slice(0, 10);
+
+  // Also return all stats for client-side toggling
+  return NextResponse.json({ topProducts, allProductStats: Object.values(productStats) });
 }

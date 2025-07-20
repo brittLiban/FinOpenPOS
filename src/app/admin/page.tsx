@@ -41,7 +41,9 @@ export default function Page() {
   const [totalProfit, setTotalProfit] = useState(0);
   const [cashFlow, setCashFlow] = useState<{ date: string; amount: unknown }[]>([]);
   const [revenueByCategory, setRevenueByCategory] = useState({});
-  const [expensesByCategory, setExpensesByCategory] = useState({});
+  const [expensesByCategory, setExpensesByCategory] = useState<any>({});
+  const [allProductStats, setAllProductStats] = useState<any[]>([]);
+  const [topProductsMode, setTopProductsMode] = useState<'revenue' | 'quantity'>('revenue');
   const [profitMargin, setProfitMargin] = useState([]);
   const [loading, setLoading] = useState(true);
   const [lowStock, setLowStock] = useState<{ id: number; name: string; in_stock: number; low_stock_threshold: number }[]>([]);
@@ -93,7 +95,14 @@ export default function Page() {
         setTotalProfit(toNumber(profit.totalProfit));
         setCashFlow(Object.entries(cashFlowData.cashFlow).map(([date, amount]) => ({ date, amount })));
         setRevenueByCategory(revenueByCategoryData.revenueByCategory);
-        setExpensesByCategory(expensesByCategoryData.expensesByCategory);
+        // Support both old and new API shapes
+        if (expensesByCategoryData.topProducts) {
+          setExpensesByCategory(expensesByCategoryData.topProducts);
+          setAllProductStats(expensesByCategoryData.allProductStats || expensesByCategoryData.topProducts);
+        } else {
+          setExpensesByCategory(expensesByCategoryData.expensesByCategory || {});
+          setAllProductStats([]);
+        }
         setProfitMargin(profitMarginData.profitMargin);
         setLowStock(low);
         setRevenueHistory(revenueHistoryData || []);
@@ -289,11 +298,29 @@ export default function Page() {
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Expenses by Category</CardTitle>
-            <PieChartIcon className="w-4 h-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">Top Selling Products</CardTitle>
+            <BarChartIcon className="w-4 h-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <PiechartcustomChart data={expensesByCategory} className="aspect-auto" />
+            {Array.isArray(allProductStats) && allProductStats.length > 0 ? (
+              <ul className="space-y-1">
+                {allProductStats
+                  .sort((a, b) => topProductsMode === 'revenue' ? b.revenue - a.revenue : b.quantity - a.quantity)
+                  .slice(0, 10)
+                  .map((prod: any, idx: number) => (
+                    <li key={prod.name || idx} className="flex justify-between text-sm">
+                      <span>{prod.name}</span>
+                      <span className="font-medium">
+                        {topProductsMode === 'revenue'
+                          ? `$${prod.revenue.toFixed(2)}`
+                          : `${prod.quantity} sold`}
+                      </span>
+                    </li>
+                  ))}
+              </ul>
+            ) : (
+              <PiechartcustomChart data={expensesByCategory} className="aspect-auto" />
+            )}
           </CardContent>
         </Card>
         <Card>
