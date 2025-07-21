@@ -27,6 +27,33 @@ export default function UserRolesPage() {
 
 
 
+  const [seedingRoles, setSeedingRoles] = useState(false);
+
+  // Seed Default Roles Handler
+  const handleSeedRoles = async () => {
+    setSeedingRoles(true);
+    setError(null);
+    setSuccess(null);
+    try {
+      const res = await fetch("/api/admin/seed-roles", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" }
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to seed roles.");
+      
+      setSuccess(`${data.message}. Refreshing roles...`);
+      
+      // Refresh roles
+      const rolesData = await getAllRoles();
+      setRoles(rolesData);
+      
+    } catch (e: any) {
+      setError(e.message || "Failed to seed roles.");
+    }
+    setSeedingRoles(false);
+  };
+
   // Add User Handler
   const handleAddUser = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -117,15 +144,19 @@ export default function UserRolesPage() {
         return;
       }
 
-      // Fetch users with company_id and roles in a single optimized query
+      // Fetch users with company_id and roles via sidebar_permissions
       const { data, error } = await supabase
         .from('profiles')
         .select(`
           id,
           email,
           company_id,
-          user_role_assignments!inner (
-            role_name
+          sidebar_permissions (
+            role_id,
+            roles (
+              id,
+              name
+            )
           )
         `)
         .eq('company_id', adminProfile.company_id);
@@ -141,7 +172,9 @@ export default function UserRolesPage() {
         user_id: profile.id,
         email: profile.email,
         company_id: profile.company_id,
-        role_names: profile.user_role_assignments.map((r: any) => r.role_name)
+        role_names: Array.from(new Set(profile.sidebar_permissions
+          .map((sp: any) => sp.roles?.name)
+          .filter((name: string) => name))) // Remove duplicates with Set
       }));
 
       setUsers(usersWithRoles);
@@ -193,26 +226,45 @@ export default function UserRolesPage() {
     setSuccess(null);
     try {
       await updateUserRole(userId, roleChanges[userId]);
-      // Refresh users
+      // Refresh users using the same query as initial load
       const supabase = createClient();
+      const { data: currentUser } = await supabase.auth.getUser();
+      if (!currentUser.user) return;
+
+      const { data: adminProfile } = await supabase
+        .from('profiles')
+        .select('company_id')
+        .eq('id', currentUser.user.id)
+        .single();
+      
+      if (!adminProfile?.company_id) return;
+
       const { data } = await supabase
-        .from("profiles")
-        .select("id, email, user_roles: user_roles(role_id, roles: roles(name))");
-      const usersFlat = (data || []).map((u: any) => {
-        let role_id = "";
-        let roles = [];
-        if (u.user_roles && Array.isArray(u.user_roles) && u.user_roles.length > 0) {
-          role_id = u.user_roles[0]?.role_id || "";
-          roles = u.user_roles.map((ur: any) => ur.roles?.name).filter(Boolean);
-        }
-        return {
-          user_id: u.id,
-          email: u.email,
-          role_id,
-          roles
-        };
-      });
-      setUsers(usersFlat);
+        .from('profiles')
+        .select(`
+          id,
+          email,
+          company_id,
+          sidebar_permissions (
+            role_id,
+            roles (
+              id,
+              name
+            )
+          )
+        `)
+        .eq('company_id', adminProfile.company_id);
+
+      const usersWithRoles = (data || []).map((profile: any) => ({
+        user_id: profile.id,
+        email: profile.email,
+        company_id: profile.company_id,
+        role_names: Array.from(new Set(profile.sidebar_permissions
+          .map((sp: any) => sp.roles?.name)
+          .filter((name: string) => name))) // Remove duplicates
+      }));
+      
+      setUsers(usersWithRoles);
       setRoleChanges((prev) => {
         const copy = { ...prev };
         delete copy[userId];
@@ -231,10 +283,34 @@ export default function UserRolesPage() {
   return (
     <div className="max-w-2xl mx-auto py-8">
       <h1 className="text-2xl font-bold mb-6">User Roles Management</h1>
-      <div className="mb-2 text-sm text-gray-700">
-        <b>Company ID:</b> {companyId || 'N/A'}
+      
+      {/* Debug Info */}
+      <div className="mb-4 p-3 bg-gray-100 rounded text-sm">
+        <div><b>Company ID:</b> {companyId || userMetaCompanyId || 'N/A'}</div>
+        <div><b>Available Roles:</b> {roles.length} role(s) found</div>
+        {roles.length > 0 && (
+          <div><b>Role Names:</b> {roles.map(r => r.name).join(', ')}</div>
+        )}
       </div>
-      {!companyId && (
+
+      {/* Seed Roles Button */}
+      {roles.length <= 1 && (
+        <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded">
+          <p className="text-blue-800 mb-2">
+            <b>Need more roles?</b> You currently have {roles.length} role(s). 
+            Click below to create default roles for your company.
+          </p>
+          <Button 
+            onClick={handleSeedRoles} 
+            disabled={seedingRoles}
+            size="sm"
+            className="bg-blue-600 hover:bg-blue-700"
+          >
+            {seedingRoles ? "Creating Roles..." : "Create Default Roles (Admin, Manager, Cashier, Employee)"}
+          </Button>
+        </div>
+      )}
+      {!companyId && !userMetaCompanyId && (
         <div className="mb-4 p-3 bg-red-100 text-red-800 rounded">
           <b>Warning:</b> Your company ID is not set. You cannot add users until this is fixed.<br />
           Please contact support or use the admin tools to set your company ID.

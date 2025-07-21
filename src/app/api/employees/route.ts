@@ -7,6 +7,17 @@ export async function GET(request: Request) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   
+  // Get user's company_id
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('company_id')
+    .eq('id', user.id)
+    .single();
+    
+  if (!profile?.company_id) {
+    return NextResponse.json({ error: 'No company associated with user' }, { status: 400 });
+  }
+  
   const { searchParams } = new URL(request.url);
   const search = searchParams.get('search');
   const role = searchParams.get('role');
@@ -17,7 +28,7 @@ export async function GET(request: Request) {
   let query = supabase
     .from('employees')
     .select('*')
-    .eq('user_uid', user.id)
+    .eq('company_id', profile.company_id)
     .order('created_at', { ascending: false })
     .range(offset, offset + limit - 1);
 
@@ -44,10 +55,22 @@ export async function POST(request: Request) {
   const supabase = createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  
+  // Get user's company_id
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('company_id')
+    .eq('id', user.id)
+    .single();
+    
+  if (!profile?.company_id) {
+    return NextResponse.json({ error: 'No company associated with user' }, { status: 400 });
+  }
+  
   const newEmployee = await request.json();
   const { data, error } = await supabase
     .from('employees')
-    .insert([{ ...newEmployee, user_uid: user.id }])
+    .insert([{ ...newEmployee, user_uid: user.id, company_id: profile.company_id }])
     .select();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   // Audit log
@@ -57,6 +80,7 @@ export async function POST(request: Request) {
     actionType: 'create',
     entityType: 'employee',
     entityId: data[0]?.id ? String(data[0].id) : undefined,
+    companyId: profile.company_id,
     details: { created: data[0] }
   });
   return NextResponse.json(data[0]);
