@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { stripeConnect } from "@/lib/stripe";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: "2023-10-16",
+  apiVersion: "2025-06-30.basil",
 });
 
 export async function POST(req: NextRequest) {
@@ -146,7 +146,12 @@ export async function POST(req: NextRequest) {
       return {
         price_data: {
           currency: "usd",
-          product_data: { name: item.name },
+          product_data: { 
+            name: item.name,
+            metadata: { 
+              product_id: item.id.toString() // Add product_id to metadata
+            }
+          },
           unit_amount: Math.round(discountedPrice * 100),
         },
         quantity: item.quantity,
@@ -190,6 +195,28 @@ export async function POST(req: NextRequest) {
         platform_fee_percent: platformFeePercent.toFixed(2),
         platform_fee_amount: (applicationFeeAmount / 100).toFixed(2),
       },
+    });
+
+    // Record transaction in database for cashier tracking
+    // Create a useful description with items purchased
+    const itemsSummary = body.items.map((item: any) => 
+      `${item.quantity}x ${item.name}`
+    ).join(', ');
+    
+    const businessAmount = (totalAmount - applicationFeeAmount) / 100; // What business actually receives
+    
+    const description = body.items.length === 1 
+      ? `${body.items[0].quantity}x ${body.items[0].name} - $${businessAmount.toFixed(2)}`
+      : `${body.items.length} items (${itemsSummary}) - $${businessAmount.toFixed(2)}`;
+
+    await supabase.from('transactions').insert({
+      description,
+      category: 'stripe_checkout',
+      amount: businessAmount, // Business receives this amount (after platform fee)
+      type: 'income',
+      status: 'pending', // Will be updated to completed via webhook
+      user_uid: user.id,
+      stripe_session_id: session.id, // Store session ID for webhook updates
     });
 
     await logCheckoutAudit('checkout', { 

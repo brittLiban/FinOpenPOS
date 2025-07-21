@@ -156,6 +156,19 @@ export async function POST(req: Request) {
     console.log(`📦 Order record saved for session: ${session.id}, company: ${companyId}`);
   }
 
+  // Update transaction status to completed
+  const { error: transactionErr } = await supabase
+    .from("transactions")
+    .update({ status: 'completed' })
+    .eq('stripe_session_id', session.id)
+    .eq('status', 'pending');
+
+  if (transactionErr) {
+    console.error("⚠️ Could not update transaction status:", transactionErr);
+  } else {
+    console.log(`💰 Transaction marked as completed for session: ${session.id}`);
+  }
+
   // Mark session as processed with company isolation
   await supabase.from("processed_sessions").insert({
     session_id: session.id,

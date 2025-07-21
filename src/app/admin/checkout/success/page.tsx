@@ -17,11 +17,14 @@ export default function CheckoutSuccessPage() {
         .then((data) => {
           setSessionDetails(data);
 
-          const products = data.line_items?.data?.map((item: any) => ({
-            id: item.price?.product?.metadata?.product_id,
-            quantity: item.quantity,
-            price: item.amount_total / 100,
-          })) ?? [];
+          const products = data.line_items?.data?.map((item: any) => {
+            const productId = item.price?.product?.metadata?.product_id;
+            return {
+              id: productId ? parseInt(productId) : null,
+              quantity: item.quantity,
+              price: item.amount_total / 100,
+            };
+          }).filter((product: any) => product.id !== null) ?? []; // Filter out items without valid product_id
 
           const payload = {
             customer_id: null,
