@@ -47,6 +47,7 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
   const [role, setRole] = useState<string>("");
   const [roleId, setRoleId] = useState<number | null>(null);
   const [sidebarPerms, setSidebarPerms] = useState<{ [itemKey: string]: boolean }>({});
+  const [companyId, setCompanyId] = useState<string | null>(null);
   const router = useRouter();
 
   // Track when sidebarPerms are loaded
@@ -67,9 +68,21 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
           setRole('No role assigned');
           setRoleId(null);
         }
+        // Fetch company_id from profiles table
+        const { data: profile, error: profileError } = await supabase
+          .from('profiles')
+          .select('company_id')
+          .eq('id', data.user.id)
+          .single();
+        if (!profileError && profile?.company_id) {
+          setCompanyId(profile.company_id);
+        } else {
+          setCompanyId(null);
+        }
       } else {
         setRole('No role assigned');
         setRoleId(null);
+        setCompanyId(null);
       }
     });
   }, []);
@@ -172,12 +185,16 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             <DropdownMenuLabel>My Account</DropdownMenuLabel>
-            {user && (
-              <div className="px-4 py-2 text-xs text-muted-foreground">
-                <div><b>Email:</b> {user.email}</div>
-                <div><b>Role:</b> {role || 'No role assigned'}</div>
-              </div>
-            )}
+            {user ? (
+              <>
+                <div className="px-4 py-2 text-xs text-muted-foreground">
+                  <div><b>Email:</b> {user.email}</div>
+                  <div><b>Role:</b> {role || 'No role assigned'}</div>
+                  <div><b>Company ID:</b> {companyId || 'N/A'}</div>
+                </div>
+                <DropdownMenuSeparator />
+              </>
+            ) : null}
             <DropdownMenuSeparator />
             <DropdownMenuItem asChild>
               <Link href="/admin/settings">Settings</Link>

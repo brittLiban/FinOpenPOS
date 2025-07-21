@@ -13,23 +13,24 @@ export default function AuditLogPage() {
     const supabase = createClient();
     supabase
       .from('audit_log')
-      .select('*')
+      .select(`
+        *,
+        profiles!audit_log_user_id_fkey (
+          email
+        )
+      `)
       .order('created_at', { ascending: false })
       .limit(200)
-      .then(async ({ data }) => {
+      .then(({ data }) => {
         setLogs(data || []);
-        // Collect unique user_ids
-        const userIds = Array.from(new Set((data || []).map((log: any) => log.user_id).filter(Boolean)));
-        if (userIds.length > 0) {
-          // Fetch user emails in batch
-          const { data: profiles } = await supabase
-            .from('profiles')
-            .select('id, email')
-            .in('id', userIds);
-          const map: Record<string, string> = {};
-          (profiles || []).forEach((p: any) => { map[p.id] = p.email; });
-          setUserMap(map);
-        }
+        // Build user map from joined data
+        const map: Record<string, string> = {};
+        (data || []).forEach((log: any) => {
+          if (log.profiles?.email) {
+            map[log.user_id] = log.profiles.email;
+          }
+        });
+        setUserMap(map);
         setLoading(false);
       });
   }, []);

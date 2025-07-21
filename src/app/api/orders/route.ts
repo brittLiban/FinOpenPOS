@@ -11,7 +11,19 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const { data, error } = await supabase
+  const { searchParams } = req.nextUrl;
+  
+  // Server-side filtering and pagination
+  const id = searchParams.get('id');
+  const customer = searchParams.get('customer');
+  const email = searchParams.get('email');
+  const status = searchParams.get('status');
+  const startDate = searchParams.get('startDate');
+  const endDate = searchParams.get('endDate');
+  const limit = parseInt(searchParams.get('limit') || '50');
+  const offset = parseInt(searchParams.get('offset') || '0');
+
+  let query = supabase
     .from('orders')
     .select(`
       id,
@@ -23,7 +35,35 @@ export async function GET(req: NextRequest) {
       created_at
     `)
     .eq('user_uid', user.id)
-    .order('created_at', { ascending: false });
+    .order('created_at', { ascending: false })
+    .range(offset, offset + limit - 1);
+
+  // Apply server-side filters
+  if (id) {
+    query = query.eq('id', parseInt(id));
+  }
+
+  if (customer) {
+    query = query.ilike('customer_name', `%${customer}%`);
+  }
+
+  if (email) {
+    query = query.ilike('customer_email', `%${email}%`);
+  }
+
+  if (status && status !== 'all') {
+    query = query.eq('status', status);
+  }
+
+  if (startDate) {
+    query = query.gte('created_at', startDate);
+  }
+
+  if (endDate) {
+    query = query.lte('created_at', endDate);
+  }
+
+  const { data, error } = await query;
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });

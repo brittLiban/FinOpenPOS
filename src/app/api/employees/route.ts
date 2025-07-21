@@ -6,10 +6,35 @@ export async function GET(request: Request) {
   const supabase = createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  const { data, error } = await supabase
+  
+  const { searchParams } = new URL(request.url);
+  const search = searchParams.get('search');
+  const role = searchParams.get('role');
+  const status = searchParams.get('status');
+  const limit = parseInt(searchParams.get('limit') || '100');
+  const offset = parseInt(searchParams.get('offset') || '0');
+
+  let query = supabase
     .from('employees')
     .select('*')
-    .eq('user_uid', user.id);
+    .eq('user_uid', user.id)
+    .order('created_at', { ascending: false })
+    .range(offset, offset + limit - 1);
+
+  // Apply server-side filters
+  if (search) {
+    query = query.ilike('name', `%${search}%`);
+  }
+
+  if (role) {
+    query = query.eq('role', role);
+  }
+
+  if (status) {
+    query = query.eq('status', status);
+  }
+
+  const { data, error } = await query;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json(data);
 }

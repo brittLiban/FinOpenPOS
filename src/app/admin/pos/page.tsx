@@ -40,6 +40,8 @@ export default function POSPage() {
   const [selectedProducts, setSelectedProducts] = useState<POSProduct[]>([]);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | null>(null);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [productSearch, setProductSearch] = useState("");
+  const [searchLoading, setSearchLoading] = useState(false);
 
   useEffect(() => {
     fetchProducts();
@@ -47,14 +49,30 @@ export default function POSPage() {
     fetchPaymentMethods();
   }, []);
 
-  const fetchProducts = async () => {
+  // Debounced product search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (productSearch.length >= 2) {
+        fetchProducts(productSearch);
+      } else if (productSearch.length === 0) {
+        fetchProducts();
+      }
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [productSearch]);
+
+  const fetchProducts = async (searchTerm?: string) => {
+    setSearchLoading(true);
     try {
-      const response = await fetch("/api/products");
+      const response = await fetch("/api/products" + (searchTerm ? `?search=${searchTerm}` : ""));
       if (!response.ok) throw new Error("Failed to fetch products");
       const data = await response.json();
       setProducts(data);
     } catch (error) {
       console.error("Error fetching products:", error);
+    } finally {
+      setSearchLoading(false);
     }
   };
 
@@ -190,6 +208,8 @@ export default function POSPage() {
             noSelect
             onSelect={handleSelectProduct}
             className="!mt-5"
+            loading={searchLoading}
+            onSearch={setProductSearch}
           />
         </CardHeader>
         <CardContent>

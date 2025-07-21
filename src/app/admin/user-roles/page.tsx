@@ -21,7 +21,9 @@ export default function UserRolesPage() {
   const [success, setSuccess] = useState<string | null>(null);
   const [roleChanges, setRoleChanges] = useState<{ [userId: string]: number }>({});
   const [saving, setSaving] = useState<string | null>(null);
-
+  const [companyId, setCompanyId] = useState<string | null>(null);
+  const [userMetaCompanyId, setUserMetaCompanyId] = useState<string | null>(null);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
 
 
@@ -30,6 +32,11 @@ export default function UserRolesPage() {
     e.preventDefault();
     setError(null);
     setSuccess(null);
+    const effectiveCompanyId = userMetaCompanyId || companyId;
+    if (!effectiveCompanyId) {
+      setError("Company ID is not set. Please refresh the page or contact support.");
+      return;
+    }
     if (!newUserPassword) {
       setError("Password is required.");
       return;
@@ -47,6 +54,7 @@ export default function UserRolesPage() {
           email: newUserEmail,
           password: newUserPassword,
           role_id: Number(newUserRole),
+          company_id: effectiveCompanyId, // Always send the companyId from user metadata if available
         }),
       });
       const data = await res.json();
@@ -71,7 +79,7 @@ export default function UserRolesPage() {
     setError(null);
     setSuccess(null);
     try {
-      await deleteUser(userId);
+      await deleteUser(userId, currentUserId || undefined);
       setSuccess("User deleted successfully.");
       // Refresh users
       const supabase = createClient();
@@ -83,27 +91,95 @@ export default function UserRolesPage() {
   };
 
   useEffect(() => {
-    const fetchUsers = async () => {
+    const fetchUsersAndCompanyId = async () => {
       setLoading(true);
       setError(null);
       const supabase = createClient();
-      // Fetch all users and aggregate their roles using the working RPC
-      const { data, error } = await supabase.rpc('get_users_with_roles');
+      
+      // Use direct query with JOIN to get company_id efficiently
+      const { data: currentUser } = await supabase.auth.getUser();
+      if (!currentUser.user) {
+        setError('Not authenticated');
+        setLoading(false);
+        return;
+      }
+
+      // Get admin's company_id first
+      const { data: adminProfile } = await supabase
+        .from('profiles')
+        .select('company_id')
+        .eq('id', currentUser.user.id)
+        .single();
+      
+      if (!adminProfile?.company_id) {
+        setError('No company associated with user');
+        setLoading(false);
+        return;
+      }
+
+      // Fetch users with company_id and roles in a single optimized query
+      const { data, error } = await supabase
+        .from('profiles')
+        .select(`
+          id,
+          email,
+          company_id,
+          user_role_assignments!inner (
+            role_name
+          )
+        `)
+        .eq('company_id', adminProfile.company_id);
+
       if (error) {
         setError(error.message);
         setLoading(false);
         return;
       }
-      setUsers(data || []);
+
+      // Transform data to match expected format
+      const usersWithRoles = (data || []).map((profile: any) => ({
+        user_id: profile.id,
+        email: profile.email,
+        company_id: profile.company_id,
+        role_names: profile.user_role_assignments.map((r: any) => r.role_name)
+      }));
+
+      setUsers(usersWithRoles);
       try {
         const rolesData = await getAllRoles();
         setRoles(rolesData);
       } catch (e: any) {
         setError(e.message);
       }
+      // Fetch current user's company_id from user metadata and from profile
+      try {
+        const { data: authData } = await supabase.auth.getUser();
+        if (authData?.user) {
+          setCurrentUserId(authData.user.id);
+          const metaCompanyId = authData.user.user_metadata?.company_id || null;
+          setUserMetaCompanyId(metaCompanyId);
+          const { data: profile, error: profileError } = await supabase
+            .from('profiles')
+            .select('company_id')
+            .eq('id', authData.user.id)
+            .single();
+          if (!profileError && profile?.company_id) {
+            setCompanyId(profile.company_id);
+          } else {
+            setCompanyId(null);
+          }
+        } else {
+          setCompanyId(null);
+          setUserMetaCompanyId(null);
+          setCurrentUserId(null);
+        }
+      } catch (e) {
+        setCompanyId(null);
+        setUserMetaCompanyId(null);
+      }
       setLoading(false);
     };
-    fetchUsers();
+    fetchUsersAndCompanyId();
   }, []);
 
   const handleRoleChange = (userId: string, roleId: number) => {
@@ -155,9 +231,20 @@ export default function UserRolesPage() {
   return (
     <div className="max-w-2xl mx-auto py-8">
       <h1 className="text-2xl font-bold mb-6">User Roles Management</h1>
-      <div className="mb-4 p-3 bg-yellow-100 text-yellow-800 rounded">
-        After making any changes, please refresh the page to see updates.
+      <div className="mb-2 text-sm text-gray-700">
+        <b>Company ID:</b> {companyId || 'N/A'}
       </div>
+      {!companyId && (
+        <div className="mb-4 p-3 bg-red-100 text-red-800 rounded">
+          <b>Warning:</b> Your company ID is not set. You cannot add users until this is fixed.<br />
+          Please contact support or use the admin tools to set your company ID.
+        </div>
+      )}
+      {success && (
+        <div className="mb-4 p-3 bg-yellow-100 text-yellow-800 rounded">
+          After making any changes, please refresh the page to see updates.
+        </div>
+      )}
       {loading && <div>Loading...</div>}
       {error && <div className="text-red-500 mb-2">{error}</div>}
       {success && <div className="text-green-600 mb-2">{success}</div>}
@@ -205,7 +292,7 @@ export default function UserRolesPage() {
             ))}
           </select>
         </div>
-        <Button type="submit" size="sm" disabled={adding || !newUserEmail || !newUserPassword}>
+        <Button type="submit" size="sm" disabled={adding || !newUserEmail || !newUserPassword || !(companyId || userMetaCompanyId)}>
           {adding ? "Adding..." : "Add User"}
         </Button>
       </form>
@@ -221,6 +308,9 @@ export default function UserRolesPage() {
                 </div>
                 <div className="text-sm text-gray-500">
                   {user.role_names ? `Current role: ${user.role_names}` : 'No role assigned'}
+                </div>
+                <div className="text-xs text-muted-foreground mt-1">
+                  <b>Company ID:</b> {user.company_id || 'N/A'}
                 </div>
               </div>
               <div className="flex flex-col gap-2 md:flex-row md:items-center md:gap-2 mt-2 md:mt-0 w-full md:w-auto">

@@ -3,6 +3,11 @@ import { NextResponse } from 'next/server'
 
 export async function GET(request: Request) {
   const supabase = createClient();
+  const { searchParams } = new URL(request.url);
+  const search = searchParams.get('search');
+  const status = searchParams.get('status');
+  const limit = parseInt(searchParams.get('limit') || '100');
+  const offset = parseInt(searchParams.get('offset') || '0');
 
   const { data: { user } } = await supabase.auth.getUser();
   
@@ -10,10 +15,23 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const { data, error } = await supabase
+  let query = supabase
     .from('customers')
-    .select('id, name')
+    .select('id, name, email, phone, status, created_at')
     .eq('user_uid', user.id)
+    .order('created_at', { ascending: false })
+    .range(offset, offset + limit - 1);
+
+  // Apply server-side filtering
+  if (status && status !== 'all') {
+    query = query.eq('status', status);
+  }
+
+  if (search) {
+    query = query.or(`name.ilike.%${search}%,email.ilike.%${search}%,phone.ilike.%${search}%`);
+  }
+
+  const { data, error } = await query;
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 })

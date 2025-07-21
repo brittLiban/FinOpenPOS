@@ -8,6 +8,15 @@ export function createClient() {
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
+      db: {
+        schema: 'public',
+      },
+      global: {
+        headers: {
+          'Cache-Control': 'no-cache',
+          Pragma: 'no-cache',
+        },
+      },
       cookies: {
         getAll() {
           return cookieStore.getAll()
@@ -26,4 +35,14 @@ export function createClient() {
       },
     }
   )
+}
+
+// Create a singleton client for better performance
+let clientInstance: ReturnType<typeof createClient> | null = null
+
+export function getClient() {
+  if (!clientInstance) {
+    clientInstance = createClient()
+  }
+  return clientInstance
 }
