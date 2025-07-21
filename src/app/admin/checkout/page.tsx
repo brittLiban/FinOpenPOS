@@ -127,7 +127,19 @@ function CheckoutPage() {
   useEffect(() => {
     fetch("/api/products")
       .then(res => res.json())
-      .then(setProducts);
+      .then(data => {
+        // Ensure we have an array, fallback to empty array if not
+        if (Array.isArray(data)) {
+          setProducts(data);
+        } else {
+          console.error('Products API did not return an array:', data);
+          setProducts([]);
+        }
+      })
+      .catch(error => {
+        console.error('Failed to fetch products:', error);
+        setProducts([]);
+      });
   }, []);
 
   const getCartQty = (id: number) => cart.find(p => p.id === id)?.quantity ?? 0;
@@ -241,9 +253,10 @@ function CheckoutPage() {
           <CardTitle>Products</CardTitle>
         </CardHeader>
         <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {products.filter((p: Product) => !p.archived).map((p: Product) => {
-            const cartQty = getCartQty(p.id);
-            const isOut = cartQty >= p.in_stock;
+          {products && products.length > 0 ? (
+            products.filter((p: Product) => p && !p.archived).map((p: Product) => {
+              const cartQty = getCartQty(p.id);
+              const isOut = cartQty >= p.in_stock;
             return (
               <div key={p.id} className="flex justify-between items-center">
                 <div>
@@ -259,9 +272,13 @@ function CheckoutPage() {
                 ) : (
                   <Button onClick={() => addToCart(p)}>Add</Button>
                 )}
-              </div>
-            );
-          })}
+              </div>              );
+            })
+          ) : (
+            <div className="col-span-2 text-center text-gray-500 py-8">
+              No products available. Please add some products first.
+            </div>
+          )}
         </CardContent>
       </Card>
 

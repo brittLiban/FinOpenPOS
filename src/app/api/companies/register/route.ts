@@ -6,37 +6,44 @@ export async function POST(req: NextRequest) {
   try {
     const { 
       companyName, 
-      companySlug, 
-      email, 
-      password, 
-      firstName, 
-      lastName,
-      phone,
-      subscriptionPlan = 'basic'
+      businessType,
+      ownerEmail,
+      ownerUserId,
+      contactInfo
     } = await req.json();
 
     // Validate required fields
-    if (!companyName || !companySlug || !email || !password) {
+    if (!companyName || !ownerEmail || !ownerUserId) {
       return NextResponse.json(
-        { error: 'Missing required fields' }, 
+        { error: 'Missing required fields: companyName, ownerEmail, ownerUserId' }, 
         { status: 400 }
       );
     }
 
     const admin = createAdminClient();
 
-    // Check if company slug is available
-    const { data: existingCompany } = await admin
-      .from('companies')
-      .select('id')
-      .eq('slug', companySlug)
-      .single();
+    // Generate a unique company slug from the company name
+    const companySlug = companyName
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-|-$/g, '');
 
-    if (existingCompany) {
-      return NextResponse.json(
-        { error: 'Company slug already taken' }, 
-        { status: 409 }
-      );
+    // Check if company slug is available (add random number if needed)
+    let finalSlug = companySlug;
+    let counter = 1;
+    
+    while (true) {
+      const { data: existingCompany } = await admin
+        .from('companies')
+        .select('id')
+        .eq('slug', finalSlug)
+        .single();
+
+      if (!existingCompany) break;
+      
+      finalSlug = `${companySlug}-${counter}`;
+      counter++;
     }
 
     // Create company
@@ -44,15 +51,16 @@ export async function POST(req: NextRequest) {
       .from('companies')
       .insert({
         name: companyName,
-        slug: companySlug,
-        email: email,
-        phone: phone,
-        subscription_plan: subscriptionPlan,
+        slug: finalSlug,
+        email: ownerEmail,
+        phone: contactInfo?.phone,
+        business_type: businessType || 'retail',
+        subscription_plan: 'basic',
         subscription_status: 'trial',
         trial_ends_at: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(), // 14 days
-        max_users: subscriptionPlan === 'basic' ? 5 : subscriptionPlan === 'pro' ? 25 : 100,
-        max_products: subscriptionPlan === 'basic' ? 1000 : subscriptionPlan === 'pro' ? 10000 : 50000,
-        max_orders_per_month: subscriptionPlan === 'basic' ? 500 : subscriptionPlan === 'pro' ? 5000 : 25000
+        max_users: 5,
+        max_products: 1000,
+        max_orders_per_month: 500
       })
       .select()
       .single();
@@ -64,54 +72,22 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Create owner user
-    const { data: userData, error: userError } = await admin.auth.admin.createUser({
-      email,
-      password,
-      email_confirm: true,
-      user_metadata: { 
-        company_id: company.id,
-        first_name: firstName,
-        last_name: lastName,
-        role: 'owner'
-      }
-    });
-
-    if (userError) {
-      // Cleanup company if user creation fails
-      await admin.from('companies').delete().eq('id', company.id);
-      return NextResponse.json(
-        { error: 'Failed to create user', details: userError.message }, 
-        { status: 500 }
-      );
-    }
-
-    const userId = userData.user?.id;
-    if (!userId) {
-      await admin.from('companies').delete().eq('id', company.id);
-      return NextResponse.json(
-        { error: 'User creation failed' }, 
-        { status: 500 }
-      );
-    }
-
-    // Create profile
+    // Create profile for the existing user
     const { error: profileError } = await admin
       .from('profiles')
       .insert({
-        id: userId,
-        email,
+        id: ownerUserId,
+        email: ownerEmail,
         company_id: company.id,
-        first_name: firstName,
-        last_name: lastName
+        first_name: contactInfo?.firstName || '',
+        last_name: contactInfo?.lastName || ''
       });
 
     if (profileError) {
-      // Cleanup
-      await admin.auth.admin.deleteUser(userId);
+      // Cleanup company if profile creation fails
       await admin.from('companies').delete().eq('id', company.id);
       return NextResponse.json(
-        { error: 'Failed to create profile', details: profileError.message }, 
+        { error: 'Failed to create user profile', details: profileError?.message || 'Unknown error' }, 
         { status: 500 }
       );
     }
@@ -121,7 +97,7 @@ export async function POST(req: NextRequest) {
       .from('company_users')
       .insert({
         company_id: company.id,
-        user_id: userId,
+        user_id: ownerUserId,
         role: 'owner'
       });
 
@@ -145,14 +121,14 @@ export async function POST(req: NextRequest) {
       await admin
         .from('user_roles')
         .insert({
-          user_id: userId,
+          user_id: ownerUserId,
           role_id: adminRole.id,
           tenant_id: company.id
         });
     }
 
     // Create sample data (optional)
-    await createSampleData(admin, company.id, userId);
+    await createSampleData(admin, company.id, ownerUserId);
 
     return NextResponse.json({
       success: true,
@@ -163,8 +139,8 @@ export async function POST(req: NextRequest) {
         subscription_plan: company.subscription_plan
       },
       user: {
-        id: userId,
-        email: email
+        id: ownerUserId,
+        email: ownerEmail
       }
     });
 

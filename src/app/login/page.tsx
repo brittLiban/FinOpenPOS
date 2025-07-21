@@ -44,6 +44,13 @@ export default function LoginPage() {
               </Link>
               <Button formAction={login}>Log in</Button>
               <Button formAction={signup}>Sign up</Button>
+              
+              <div className="text-center text-sm text-muted-foreground">
+                New business owner?{' '}
+                <Link href="/register" className="text-blue-600 hover:underline font-medium">
+                  Start your free trial
+                </Link>
+              </div>
             </CardFooter>
           </form>
         </Card>
