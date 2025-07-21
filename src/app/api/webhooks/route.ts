@@ -43,11 +43,19 @@ export async function POST(req: Request) {
 
   const supabase = createAdminClient();
 
+  // Get company ID from session metadata
+  const companyId = session.metadata?.company_id;
+  if (!companyId) {
+    console.error("❌ No company_id in session metadata");
+    return new Response("Missing company_id", { status: 400 });
+  }
+
   // Check if session was already processed
   const { data: existingSession } = await supabase
     .from("processed_sessions")
     .select("session_id")
     .eq("session_id", session.id)
+    .eq("company_id", companyId)
     .maybeSingle();
 
   if (existingSession) {
@@ -76,6 +84,12 @@ export async function POST(req: Request) {
       continue;
     }
 
+    // Skip tax items (they don't have product metadata)
+    if (li.description?.includes("Tax")) {
+      console.log("ℹ️ Skipping tax line item");
+      continue;
+    }
+
     const price = await stripe.prices.retrieve(li.price.id);
     const product = await stripe.products.retrieve(price.product as string);
     const productIdStr = product.metadata.product_id;
@@ -100,16 +114,17 @@ export async function POST(req: Request) {
       continue;
     }
 
-    // Double-check product exists in Supabase (optional, but helps catch mapping errors)
+    // Double-check product exists in Supabase for this company
     const { data: supaProduct, error: supaErr } = await supabase
       .from("products")
       .select("id, in_stock")
       .eq("id", productIdStr)
+      .eq("company_id", companyId) // Ensure product belongs to the right company
       .maybeSingle();
 
     if (supaErr || !supaProduct) {
       console.error(
-        `❌ Supabase product not found for product_id=${productIdStr}. Skipping.`
+        `❌ Supabase product not found for product_id=${productIdStr} and company_id=${companyId}. Skipping.`
       );
       continue;
     }
@@ -134,20 +149,25 @@ export async function POST(req: Request) {
     );
   }
 
+  // Insert order record with company isolation
   const { error: orderErr } = await supabase.from("orders").insert({
     stripe_session_id: session.id,
     amount_total: session.amount_total,
     customer_email: session.customer_details?.email,
+    customer_name: session.customer_details?.name,
+    company_id: companyId, // Ensure order is associated with the right company
   });
 
   if (orderErr) {
     console.error("⚠️ Could not insert order record:", orderErr);
   } else {
-    console.log(`📦 Order record saved for session: ${session.id}`);
+    console.log(`📦 Order record saved for session: ${session.id}, company: ${companyId}`);
   }
 
+  // Mark session as processed with company isolation
   await supabase.from("processed_sessions").insert({
     session_id: session.id,
+    company_id: companyId,
   });
 
   console.log("🧾 Session marked as processed.");

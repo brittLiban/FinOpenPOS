@@ -9,6 +9,7 @@ import {
   UsersIcon,
   Undo2Icon,
   CreditCardIcon,
+  SettingsIcon,
 } from "lucide-react";
 
 export const SIDEBAR_ITEMS = [
@@ -24,5 +25,6 @@ export const SIDEBAR_ITEMS = [
   { key: "user-roles", label: "User Roles", path: "/admin/user-roles", icon: UsersIcon },
   { key: "returns", label: "Returns", path: "/admin/returns", icon: Undo2Icon },
   { key: "checkout", label: "Checkout", path: "/admin/checkout", icon: CreditCardIcon },
+  { key: "stripe-settings", label: "Payment Settings", path: "/admin/settings/stripe", icon: SettingsIcon },
   { key: "audit-log", label: "Audit Log", path: "/admin/audit-log", icon: BoxesIcon },
 ];

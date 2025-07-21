@@ -12,17 +12,14 @@ async function fetchEmployees() {
 }
 
 export default function EmployeesPage() {
-  const [employees, setEmployees] = useState<{ id: number; name: string; role: string; pay: string; status: string; lastShift: string; }[]>([]);
+  const [employees, setEmployees] = useState<{ id: number; name: string; email: string; role: string; created_at: string; }[]>([]);
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
   const [addForm, setAddForm] = useState({
     name: '',
-    role: 'Cashier',
-    pay: '',
-    status: 'Active',
-    lastShift: ''
+    email: '',
+    role: 'Cashier'
   });
 
   useEffect(() => {
@@ -60,15 +57,16 @@ export default function EmployeesPage() {
   const filtered = employees.filter((emp: any) => {
     return (
       (!search || emp.name.toLowerCase().includes(search.toLowerCase())) &&
-      (!roleFilter || emp.role === roleFilter) &&
-      (!statusFilter || emp.status === statusFilter)
+      (!roleFilter || emp.role === roleFilter)
     );
   });
 
   const total = employees.length;
-  const active = employees.filter((e: any) => e.status === 'Active').length;
-  const inactive = employees.filter((e: any) => e.status === 'Inactive').length;
-  const lastShift = employees.reduce((latest: string, e: any) => e.lastShift > latest ? e.lastShift : latest, '');
+  const roleCount = employees.reduce((acc: Record<string, number>, e: any) => {
+    acc[e.role] = (acc[e.role] || 0) + 1;
+    return acc;
+  }, {});
+  const latestEmployee = employees.length > 0 ? employees.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0] : null;
 
   return (
     <div className="p-6">
@@ -77,9 +75,10 @@ export default function EmployeesPage() {
           <h1 className="text-2xl font-bold mb-1">Employee Management</h1>
           <div className="flex gap-4 text-sm text-muted-foreground">
             <span>Total: <b>{total}</b></span>
-            <span>Active: <b>{active}</b></span>
-            <span>Inactive: <b>{inactive}</b></span>
-            <span>Last Shift: <b>{lastShift || 'N/A'}</b></span>
+            <span>Managers: <b>{roleCount['Manager'] || 0}</b></span>
+            <span>Cashiers: <b>{roleCount['Cashier'] || 0}</b></span>
+            <span>Stock: <b>{roleCount['Stock'] || 0}</b></span>
+            <span>Latest: <b>{latestEmployee ? latestEmployee.name : 'None'}</b></span>
           </div>
         </div>
         <Button onClick={() => setShowAddModal(true)}>Add Employee</Button>
@@ -101,16 +100,6 @@ export default function EmployeesPage() {
           <option value="Cashier">Cashier</option>
           <option value="Manager">Manager</option>
           <option value="Stock">Stock</option>
-        </select>
-        <select
-          value={statusFilter}
-          onChange={e => setStatusFilter(e.target.value)}
-          className="border rounded px-2 py-1 text-sm"
-          title="Filter by status"
-        >
-          <option value="">All Statuses</option>
-          <option value="Active">Active</option>
-          <option value="Inactive">Inactive</option>
         </select>
       </div>
       <EmployeeTable
@@ -135,12 +124,16 @@ export default function EmployeesPage() {
                 const added = await addEmployeeAPI(addForm);
                 if (added) setEmployees(prev => [...prev, added]);
                 setShowAddModal(false);
-                setAddForm({ name: '', role: 'Cashier', pay: '', status: 'Active', lastShift: '' });
+                setAddForm({ name: '', email: '', role: 'Cashier' });
               }}
             >
               <div className="mb-2">
                 <label className="block text-sm mb-1">Name</label>
                 <input className="border rounded px-2 py-1 w-full" value={addForm.name} onChange={e => setAddForm(f => ({ ...f, name: e.target.value }))} required placeholder="Full name" title="Employee name" />
+              </div>
+              <div className="mb-2">
+                <label className="block text-sm mb-1">Email</label>
+                <input type="email" className="border rounded px-2 py-1 w-full" value={addForm.email} onChange={e => setAddForm(f => ({ ...f, email: e.target.value }))} required placeholder="employee@example.com" title="Employee email" />
               </div>
               <div className="mb-2">
                 <label className="block text-sm mb-1">Role</label>
@@ -149,21 +142,6 @@ export default function EmployeesPage() {
                   <option value="Manager">Manager</option>
                   <option value="Stock">Stock</option>
                 </select>
-              </div>
-              <div className="mb-2">
-                <label className="block text-sm mb-1">Pay</label>
-                <input className="border rounded px-2 py-1 w-full" value={addForm.pay} onChange={e => setAddForm(f => ({ ...f, pay: e.target.value }))} required placeholder="$15/hr" title="Pay" />
-              </div>
-              <div className="mb-2">
-                <label className="block text-sm mb-1">Status</label>
-                <select className="border rounded px-2 py-1 w-full" value={addForm.status} onChange={e => setAddForm(f => ({ ...f, status: e.target.value }))} required title="Status">
-                  <option value="Active">Active</option>
-                  <option value="Inactive">Inactive</option>
-                </select>
-              </div>
-              <div className="mb-2">
-                <label className="block text-sm mb-1">Last Shift</label>
-                <input type="date" className="border rounded px-2 py-1 w-full" value={addForm.lastShift} onChange={e => setAddForm(f => ({ ...f, lastShift: e.target.value }))} required placeholder="YYYY-MM-DD" title="Last shift date" />
               </div>
               <div className="flex justify-end gap-2 mt-4">
                 <Button variant="outline" type="button" onClick={() => setShowAddModal(false)}>Cancel</Button>

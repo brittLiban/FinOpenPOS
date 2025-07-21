@@ -28,10 +28,9 @@ export default function EmployeeTable({ employees = [], onEdit, onRemove }: { em
         <thead>
           <tr>
             <th className="px-4 py-2 border-b">Name</th>
+            <th className="px-4 py-2 border-b">Email</th>
             <th className="px-4 py-2 border-b">Role</th>
-            <th className="px-4 py-2 border-b">Pay</th>
-            <th className="px-4 py-2 border-b">Status</th>
-            {/* Last Shift removed */}
+            <th className="px-4 py-2 border-b">Created</th>
             <th className="px-4 py-2 border-b">Actions</th>
           </tr>
         </thead>
@@ -39,10 +38,9 @@ export default function EmployeeTable({ employees = [], onEdit, onRemove }: { em
           {employees.map(emp => (
             <tr key={emp.id} className="text-center">
               <td className="px-4 py-2 border-b">{emp.name}</td>
+              <td className="px-4 py-2 border-b">{emp.email}</td>
               <td className="px-4 py-2 border-b">{emp.role}</td>
-              <td className="px-4 py-2 border-b">{emp.pay}</td>
-              <td className="px-4 py-2 border-b">{emp.status}</td>
-              {/* Last Shift removed */}
+              <td className="px-4 py-2 border-b">{new Date(emp.created_at).toLocaleDateString()}</td>
               <td className="px-4 py-2 border-b">
                 <button className="text-blue-600 hover:underline mr-2" onClick={() => handleEdit(emp)}>Edit</button>
                 <button className="text-red-600 hover:underline" onClick={() => setRemoveId(emp.id)}>Remove</button>
