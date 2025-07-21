@@ -71,12 +71,21 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
-    // 🔁 Trigger product sync to Stripe
+    // 🔁 Trigger product sync to Stripe (auto-sync after product creation)
     try {
-      await fetch(`${process.env.NEXT_PUBLIC_SITE_URL}/api/sync-products?product_id=${data[0].id}`);
+      const syncResponse = await fetch(`${process.env.NEXT_PUBLIC_SITE_URL}/api/sync-products`, {
+        method: 'POST',
+        headers: {
+          'Authorization': request.headers.get('authorization') || '',
+          'Cookie': request.headers.get('cookie') || '',
+        },
+      });
+      if (syncResponse.ok) {
+        console.log(`✅ Auto-synced new product ${data[0].name} to Stripe`);
+      }
     } catch (syncError) {
-      console.error("⚠️ Sync to Stripe failed:", syncError);
-      // Optional: log this somewhere or notify admin
+      console.error("⚠️ Auto-sync to Stripe failed:", syncError);
+      // Fail silently - don't block product creation
     }
 
     // Audit log

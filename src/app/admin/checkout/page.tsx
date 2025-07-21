@@ -187,13 +187,31 @@ function CheckoutPage() {
 
   const handleCheckout = async () => {
     setLoading(true);
-    const res = await fetch("/api/checkout", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ items: cart, discountPercent }),
-    });
-    const { url } = await res.json();
-    window.location.href = url;
+    try {
+      const res = await fetch("/api/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ items: cart, discountPercent }),
+      });
+      const data = await res.json();
+      
+      if (!res.ok) {
+        alert(`Checkout Error: ${data.error || 'Unknown error'}`);
+        setLoading(false);
+        return;
+      }
+      
+      if (data.url) {
+        window.location.href = data.url;
+      } else {
+        alert('Error: No checkout URL received');
+        setLoading(false);
+      }
+    } catch (error) {
+      console.error('Checkout error:', error);
+      alert('Failed to start checkout process');
+      setLoading(false);
+    }
   };
 
   return (

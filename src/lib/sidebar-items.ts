@@ -10,6 +10,7 @@ import {
   Undo2Icon,
   CreditCardIcon,
   SettingsIcon,
+  Building2Icon,
 } from "lucide-react";
 
 export const SIDEBAR_ITEMS = [
@@ -26,5 +27,6 @@ export const SIDEBAR_ITEMS = [
   { key: "returns", label: "Returns", path: "/admin/returns", icon: Undo2Icon },
   { key: "checkout", label: "Checkout", path: "/admin/checkout", icon: CreditCardIcon },
   { key: "stripe-settings", label: "Payment Settings", path: "/admin/settings/stripe", icon: SettingsIcon },
+  { key: "stripe-accounts", label: "Connected Accounts", path: "/admin/stripe-accounts", icon: Building2Icon },
   { key: "audit-log", label: "Audit Log", path: "/admin/audit-log", icon: BoxesIcon },
 ];

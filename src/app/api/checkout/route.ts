@@ -94,11 +94,52 @@ export async function POST(req: NextRequest) {
       taxRate = Number(settings.value);
     }
 
+    // Check if any products are missing Stripe price IDs
+    const missingStripeIds = products.filter(p => !p.stripe_price_id);
+    
+    if (missingStripeIds.length > 0) {
+      console.log(`⚠️ Found ${missingStripeIds.length} products missing Stripe IDs. Auto-syncing...`);
+      
+      // Attempt auto-sync
+      try {
+        const syncResponse = await fetch(`${process.env.NEXT_PUBLIC_SITE_URL}/api/sync-products`, {
+          method: 'POST',
+          headers: {
+            'Authorization': req.headers.get('authorization') || '',
+            'Cookie': req.headers.get('cookie') || '',
+          },
+        });
+        
+        if (syncResponse.ok) {
+          console.log('✅ Auto-sync completed. Refetching products...');
+          
+          // Refetch products with updated Stripe IDs
+          const { data: updatedProducts, error: refetchError } = await adminSupabase
+            .from("products")
+            .select("id, stripe_price_id")
+            .in("id", productIds)
+            .eq("company_id", profile.company_id);
+            
+          if (!refetchError && updatedProducts) {
+            // Replace products array with updated data
+            for (let i = 0; i < products.length; i++) {
+              const updated = updatedProducts.find(up => up.id === products[i].id);
+              if (updated) {
+                products[i] = updated;
+              }
+            }
+          }
+        }
+      } catch (syncError) {
+        console.error('❌ Auto-sync failed:', syncError);
+      }
+    }
+
     // Step 2: Build line items using stripe_price_id, applying discount directly
     let line_items = body.items.map((item: any) => {
       const matchedProduct = products.find((p) => p.id === item.id);
       if (!matchedProduct?.stripe_price_id) {
-        throw new Error(`Missing stripe_price_id for product ${item.id}`);
+        throw new Error(`Missing stripe_price_id for product ${item.id}. Please complete Stripe setup and sync products.`);
       }
       // Apply discount to price
       const discountedPrice = item.price * (1 - discountPercent / 100);

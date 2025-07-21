@@ -52,9 +52,28 @@ export default function Page() {
   const [ordersHistory, setOrdersHistory] = useState<{ date: string; count: number }[]>([]);
   const [ordersRange, setOrdersRange] = useState<'1d' | '7d' | '30d' | '3mo' | '6mo' | '1y'>('30d');
 
+  // Auto-sync products to Stripe (silent, no alerts)
+  const autoSyncProducts = async () => {
+    try {
+      const response = await fetch('/api/sync-products', { method: 'POST' });
+      if (response.ok) {
+        const data = await response.json();
+        console.log('✅ Auto-sync successful:', data.message);
+      } else {
+        console.log('⚠️ Auto-sync skipped (Stripe not ready or no products to sync)');
+      }
+    } catch (error) {
+      console.log('⚠️ Auto-sync failed:', error);
+      // Fail silently - don't disrupt user experience
+    }
+  };
+
   useEffect(() => {
     const fetchData = async () => {
       try {
+        // Auto-sync products to Stripe on dashboard load
+        await autoSyncProducts();
+
         const [
           revenueRes,
           expensesRes,

@@ -239,17 +239,44 @@ export default function StripeSettingsPage() {
           <CardHeader>
             <CardTitle>Account Management</CardTitle>
           </CardHeader>
-          <CardContent>
-            <Button 
-              variant="outline" 
-              onClick={fetchStripeStatus}
-              disabled={loading}
-            >
-              {loading ? 'Refreshing...' : 'Refresh Status'}
-            </Button>
-            <p className="text-sm text-gray-600 mt-2">
-              Click to check for the latest account status from Stripe.
-            </p>
+          <CardContent className="space-y-4">
+            <div className="flex gap-4">
+              <Button 
+                variant="outline" 
+                onClick={fetchStripeStatus}
+                disabled={loading}
+              >
+                {loading ? 'Refreshing...' : 'Refresh Status'}
+              </Button>
+              
+              <Button 
+                variant="default" 
+                onClick={async () => {
+                  try {
+                    const response = await fetch('/api/sync-products', { method: 'POST' });
+                    const data = await response.json();
+                    if (response.ok) {
+                      alert(`✅ ${data.message}`);
+                    } else {
+                      alert(`❌ ${data.error}`);
+                    }
+                  } catch (error) {
+                    alert('❌ Failed to sync products');
+                  }
+                }}
+                disabled={stripeStatus?.status !== 'complete'}
+              >
+                Sync Products to Stripe
+              </Button>
+            </div>
+            <div className="space-y-2 text-sm text-gray-600">
+              <p>
+                • <strong>Refresh Status:</strong> Check for the latest account status from Stripe.
+              </p>
+              <p>
+                • <strong>Sync Products:</strong> Create missing products in your Stripe account for checkout.
+              </p>
+            </div>
           </CardContent>
         </Card>
       </div>
