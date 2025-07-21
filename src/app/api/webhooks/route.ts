@@ -1,18 +1,10 @@
-// Disable body parsing (required for Stripe)
-export const config = {
-  api: {
-    bodyParser: false,
-    externalResolver: true,
-  },
-};
-
 export const runtime = "nodejs";
 
 import Stripe from "stripe";
 import { createAdminClient } from "@/lib/supabase/service";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: "2023-10-16",
+  apiVersion: "2025-06-30.basil",
 });
 const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET!;
 

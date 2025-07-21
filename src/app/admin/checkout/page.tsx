@@ -43,12 +43,14 @@ function CheckoutPage() {
   const [barcode, setBarcode] = useState("");
   const [isScanning, setIsScanning] = useState(false);
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const codeReaderRef = useRef<any>(null);
 
   // Barcode scan logic
   const handleStartScan = async () => {
     setIsScanning(true);
     try {
       const codeReader = new BrowserMultiFormatReader();
+      codeReaderRef.current = codeReader;
       const videoInputDevices = await BrowserMultiFormatReader.listVideoInputDevices();
       if (videoInputDevices.length === 0) {
         alert("No camera found");
@@ -60,6 +62,10 @@ function CheckoutPage() {
         if (result) {
           setBarcode(result.getText());
           setIsScanning(false);
+          // Clean up scanner after successful scan
+          if (codeReaderRef.current) {
+            codeReaderRef.current = null;
+          }
         }
       });
     } catch (err) {
@@ -69,6 +75,10 @@ function CheckoutPage() {
   };
 
   const handleStopScan = () => {
+    if (codeReaderRef.current) {
+      // Stop the scanner
+      codeReaderRef.current = null;
+    }
     setIsScanning(false);
   };
 

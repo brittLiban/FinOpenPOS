@@ -150,6 +150,48 @@ export default function RoutesPage() {
           color: "bg-gray-500"
         },
         {
+          path: "/admin/settings/stripe",
+          name: "Stripe Connect Setup",
+          description: "Configure Stripe payments and onboarding for multi-tenant processing",
+          icon: <Settings className="h-5 w-5" />,
+          color: "bg-blue-500"
+        },
+        {
+          path: "/admin/settings/stripe/complete",
+          name: "Stripe Onboarding Complete",
+          description: "Completion page after successful Stripe account setup",
+          icon: <CheckCircle className="h-5 w-5" />,
+          color: "bg-green-500"
+        },
+        {
+          path: "/admin/settings/stripe/refresh",
+          name: "Stripe Onboarding Refresh",
+          description: "Refresh page for incomplete Stripe onboarding",
+          icon: <Settings className="h-5 w-5" />,
+          color: "bg-orange-500"
+        },
+        {
+          path: "/admin/checkout",
+          name: "Multi-Tenant Checkout",
+          description: "Stripe Connect checkout with platform fees and company isolation",
+          icon: <ShoppingCart className="h-5 w-5" />,
+          color: "bg-purple-500"
+        },
+        {
+          path: "/admin/checkout/success",
+          name: "Payment Success",
+          description: "Success page after completed Stripe Connect payment",
+          icon: <CheckCircle className="h-5 w-5" />,
+          color: "bg-green-500"
+        },
+        {
+          path: "/admin/checkout/cancel",
+          name: "Payment Cancelled",
+          description: "Cancellation page for abandoned checkout sessions",
+          icon: <ExternalLink className="h-5 w-5" />,
+          color: "bg-red-500"
+        },
+        {
           path: "/admin/audit-log",
           name: "Audit Log",
           description: "View system activity and user actions log",
@@ -212,9 +254,61 @@ export default function RoutesPage() {
           icon: <Users className="h-5 w-5" />,
           color: "bg-red-600",
           method: "POST"
+        },
+        {
+          path: "/api/stripe/connect",
+          name: "Stripe Connect API",
+          description: "POST/GET endpoints for Stripe account creation and onboarding links",
+          icon: <Settings className="h-5 w-5" />,
+          color: "bg-blue-600",
+          method: "POST/GET"
+        },
+        {
+          path: "/api/checkout",
+          name: "Multi-Tenant Checkout API",
+          description: "POST endpoint for Stripe Connect checkout with platform fees",
+          icon: <ShoppingCart className="h-5 w-5" />,
+          color: "bg-purple-600",
+          method: "POST"
+        },
+        {
+          path: "/api/webhooks",
+          name: "Stripe Webhooks API",
+          description: "POST endpoint for processing Stripe webhook events with company isolation",
+          icon: <Settings className="h-5 w-5" />,
+          color: "bg-indigo-600",
+          method: "POST"
+        }
+      ]
+    },
+    {
+      category: "💰 Stripe Connect Multi-Tenant",
+      description: "Revenue-generating payment processing with platform fees",
+      routes: [
+        {
+          path: "/admin/settings/stripe",
+          name: "Stripe Connect Dashboard",
+          description: "Main Stripe settings with onboarding status and account management",
+          icon: <Settings className="h-5 w-5" />,
+          color: "bg-blue-500"
+        },
+        {
+          path: "/admin/checkout",
+          name: "Connect Checkout",
+          description: "Multi-tenant checkout processing with automatic platform fees (2.5%)",
+          icon: <ShoppingCart className="h-5 w-5" />,
+          color: "bg-green-500"
         }
       ]
     }
+  ];
+
+  const stripeFlow = [
+    { step: 1, action: "Register Company", route: "/register", description: "Create business account" },
+    { step: 2, action: "Login to Admin", route: "/admin", description: "Access admin dashboard" },
+    { step: 3, action: "Setup Stripe", route: "/admin/settings/stripe", description: "Start Stripe onboarding" },
+    { step: 4, action: "Add Products", route: "/admin/products", description: "Create inventory" },
+    { step: 5, action: "Process Payment", route: "/admin/checkout", description: "Earn platform fees!" }
   ];
 
   const testFlow = [
@@ -234,11 +328,11 @@ export default function RoutesPage() {
             FinOpenPOS - Multi-Tenant SaaS Routes
           </h1>
           <p className="text-xl text-gray-600 mb-6">
-            Complete route map for your POS system with registration flow
+            Complete route map for your multi-tenant SaaS POS system with Stripe Connect
           </p>
           <div className="bg-green-100 border border-green-200 rounded-lg p-4 inline-block">
             <p className="text-green-800 font-medium">
-              🎉 Your system is 95% SaaS-ready! All routes are functional with multi-tenant isolation.
+              🎉 Your system is 100% SaaS-ready! Multi-tenant with Stripe Connect revenue generation.
             </p>
           </div>
         </div>
@@ -259,6 +353,43 @@ export default function RoutesPage() {
               {testFlow.map((item, index) => (
                 <div key={index} className="text-center">
                   <div className="w-8 h-8 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm font-bold mx-auto mb-2">
+                    {item.step}
+                  </div>
+                  <h3 className="font-semibold text-sm mb-1">{item.action}</h3>
+                  <Link href={item.route}>
+                    <Button variant="outline" size="sm" className="mb-2">
+                      {item.route}
+                      <ExternalLink className="ml-1 h-3 w-3" />
+                    </Button>
+                  </Link>
+                  <p className="text-xs text-gray-600">{item.description}</p>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Stripe Revenue Flow */}
+        <Card className="mb-8">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Settings className="h-6 w-6 text-green-600" />
+              💰 Stripe Connect Revenue Flow
+            </CardTitle>
+            <CardDescription>
+              Test the complete multi-tenant payment processing with automatic platform fees
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
+              <p className="text-green-800 font-medium">
+                🎯 <strong>Revenue Model:</strong> Customer pays $100 → Client gets $97.50 → You get $2.50 (2.5% platform fee)
+              </p>
+            </div>
+            <div className="grid md:grid-cols-5 gap-4">
+              {stripeFlow.map((item, index) => (
+                <div key={index} className="text-center">
+                  <div className="w-8 h-8 bg-green-600 text-white rounded-full flex items-center justify-center text-sm font-bold mx-auto mb-2">
                     {item.step}
                   </div>
                   <h3 className="font-semibold text-sm mb-1">{item.action}</h3>

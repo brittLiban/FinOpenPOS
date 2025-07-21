@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Barcode Scanner Test</title>
+    <script src="https://unpkg.com/@zxing/browser@latest/dist/zxing-browser.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        #video {
+            width: 100%;
+            max-width: 400px;
+            height: 300px;
+            border: 2px solid #ccc;
+            border-radius: 8px;
+        }
+        
+        .controls {
+            margin: 20px 0;
+        }
+        
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        
+        .result {
+            margin: 20px 0;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 4px;
+            border-left: 4px solid #28a745;
+        }
+    </style>
+</head>
+<body>
+    <h1>Barcode Scanner Test</h1>
+    
+    <div class="controls">
+        <button onclick="startScanning()" id="startBtn">Start Camera</button>
+        <button onclick="stopScanning()" id="stopBtn" disabled>Stop Camera</button>
+        <button onclick="listCameras()">List Cameras</button>
+    </div>
+    
+    <video id="video" autoplay muted></video>
+    
+    <div id="result"></div>
+    <div id="cameras"></div>
+
+    <script>
+        let codeReader = null;
+        let isScanning = false;
+
+        async function listCameras() {
+            try {
+                const devices = await ZXing.BrowserMultiFormatReader.listVideoInputDevices();
+                const camerasDiv = document.getElementById('cameras');
+                camerasDiv.innerHTML = '<h3>Available Cameras:</h3>';
+                
+                if (devices.length === 0) {
+                    camerasDiv.innerHTML += '<p>No cameras found!</p>';
+                    return;
+                }
+                
+                devices.forEach((device, index) => {
+                    camerasDiv.innerHTML += `<p>${index + 1}. ${device.label || 'Camera ' + (index + 1)} (${device.deviceId})</p>`;
+                });
+            } catch (error) {
+                console.error('Error listing cameras:', error);
+                document.getElementById('cameras').innerHTML = '<p style="color: red;">Error accessing cameras: ' + error.message + '</p>';
+            }
+        }
+
+        async function startScanning() {
+            try {
+                codeReader = new ZXing.BrowserMultiFormatReader();
+                
+                const videoInputDevices = await ZXing.BrowserMultiFormatReader.listVideoInputDevices();
+                
+                if (videoInputDevices.length === 0) {
+                    alert('No camera found!');
+                    return;
+                }
+                
+                const selectedDeviceId = videoInputDevices[0].deviceId;
+                const videoElement = document.getElementById('video');
+                
+                document.getElementById('result').innerHTML = '<p>Starting camera... Please point to a barcode.</p>';
+                
+                codeReader.decodeFromVideoDevice(selectedDeviceId, videoElement, (result, err) => {
+                    if (result) {
+                        console.log('Barcode detected:', result.getText());
+                        document.getElementById('result').innerHTML = 
+                            `<div class="result">
+                                <h3>✅ Barcode Detected!</h3>
+                                <p><strong>Code:</strong> ${result.getText()}</p>
+                                <p><strong>Format:</strong> ${result.getBarcodeFormat()}</p>
+                                <p><strong>Time:</strong> ${new Date().toLocaleString()}</p>
+                            </div>`;
+                    }
+                    
+                    if (err && !(err instanceof ZXing.NotFoundException)) {
+                        console.error('Scanner error:', err);
+                    }
+                });
+                
+                isScanning = true;
+                document.getElementById('startBtn').disabled = true;
+                document.getElementById('stopBtn').disabled = false;
+                
+            } catch (error) {
+                console.error('Error starting scanner:', error);
+                document.getElementById('result').innerHTML = '<p style="color: red;">Error: ' + error.message + '</p>';
+            }
+        }
+
+        function stopScanning() {
+            if (codeReader) {
+                codeReader.reset();
+                codeReader = null;
+            }
+            
+            isScanning = false;
+            document.getElementById('startBtn').disabled = false;
+            document.getElementById('stopBtn').disabled = true;
+            document.getElementById('result').innerHTML = '<p>Camera stopped.</p>';
+        }
+
+        // Auto-list cameras on page load
+        window.onload = function() {
+            listCameras();
+        };
+    </script>
+</body>
+</html>
