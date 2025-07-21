@@ -72,6 +72,13 @@ export default function RoutesPage() {
           description: "Public recovery tool for orphaned users (no authentication required)",
           icon: <Users className="h-5 w-5" />,
           color: "bg-red-500"
+        },
+        {
+          path: "/fix-permissions",
+          name: "Permission Fix Tool",
+          description: "Diagnose and fix missing company_id or role assignments",
+          icon: <Users className="h-5 w-5" />,
+          color: "bg-purple-500"
         }
       ]
     },

@@ -22,45 +22,11 @@ export async function POST(req: NextRequest) {
 
     const admin = createAdminClient();
 
-    // Generate a unique company slug from the company name
-    const companySlug = companyName
-      .toLowerCase()
-      .replace(/[^a-z0-9]/g, '-')
-      .replace(/-+/g, '-')
-      .replace(/^-|-$/g, '');
-
-    // Check if company slug is available (add random number if needed)
-    let finalSlug = companySlug;
-    let counter = 1;
-    
-    while (true) {
-      const { data: existingCompany } = await admin
-        .from('companies')
-        .select('id')
-        .eq('slug', finalSlug)
-        .single();
-
-      if (!existingCompany) break;
-      
-      finalSlug = `${companySlug}-${counter}`;
-      counter++;
-    }
-
-    // Create company
+    // Create company (using only fields that exist in your database)
     const { data: company, error: companyError } = await admin
       .from('companies')
       .insert({
-        name: companyName,
-        slug: finalSlug,
-        email: ownerEmail,
-        phone: contactInfo?.phone,
-        business_type: businessType || 'retail',
-        subscription_plan: 'basic',
-        subscription_status: 'trial',
-        trial_ends_at: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(), // 14 days
-        max_users: 5,
-        max_products: 1000,
-        max_orders_per_month: 500
+        name: companyName
       })
       .select()
       .single();
@@ -72,15 +38,13 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Create profile for the existing user
+    // Create profile for the existing user (using only existing columns)
     const { error: profileError } = await admin
       .from('profiles')
       .insert({
         id: ownerUserId,
         email: ownerEmail,
-        company_id: company.id,
-        first_name: contactInfo?.firstName || '',
-        last_name: contactInfo?.lastName || ''
+        company_id: company.id
       });
 
     if (profileError) {
@@ -92,56 +56,76 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Add user to company_users as owner
-    const { error: companyUserError } = await admin
-      .from('company_users')
-      .insert({
-        company_id: company.id,
-        user_id: ownerUserId,
-        role: 'owner'
-      });
+    // Company user relationship is now handled through profiles table
 
-    if (companyUserError) {
-      console.warn('Failed to create company_users record:', companyUserError);
-    }
-
-    // Create default admin role for this company
+    // Create default admin role for this company (now with proper unique constraint)
     const { data: adminRole, error: roleError } = await admin
       .from('roles')
       .insert({
         name: 'admin',
-        company_id: company.id,
-        description: 'Full system access'
+        company_id: company.id
       })
       .select()
       .single();
 
-    if (!roleError && adminRole) {
-      // Assign admin role to owner
-      await admin
-        .from('user_roles')
-        .insert({
-          user_id: ownerUserId,
-          role_id: adminRole.id,
-          tenant_id: company.id
-        });
+    if (roleError) {
+      console.error('Failed to create admin role:', roleError);
+      return NextResponse.json(
+        { error: 'Failed to create admin role', details: roleError.message }, 
+        { status: 500 }
+      );
+    }
+
+    // Assign admin role to owner via sidebar_permissions (with company_id)
+    const sidebarItems = [
+      'dashboard', 'pos', 'orders', 'products', 'customers', 
+      'employees', 'inventory', 'returns', 'settings', 'audit-log'
+    ];
+    
+    const permissionInserts = sidebarItems.map(item => ({
+      user_id: ownerUserId,
+      role_id: adminRole.id,
+      company_id: company.id,
+      item_key: item,
+      enabled: true
+    }));
+
+    const { error: permissionsError } = await admin
+      .from('sidebar_permissions')
+      .insert(permissionInserts);
+
+    if (permissionsError) {
+      console.error('Failed to create admin permissions:', permissionsError);
+      return NextResponse.json(
+        { error: 'Failed to assign admin permissions', details: permissionsError.message }, 
+        { status: 500 }
+      );
     }
 
     // Create sample data (optional)
     await createSampleData(admin, company.id, ownerUserId);
 
+    console.log(`✅ Successfully registered company owner:`, {
+      userId: ownerUserId,
+      companyId: company.id,
+      companyName: company.name,
+      adminRoleName: 'admin',
+      adminRoleId: adminRole.id,
+      permissionsCount: sidebarItems.length
+    });
+
     return NextResponse.json({
       success: true,
       company: {
         id: company.id,
-        name: company.name,
-        slug: company.slug,
-        subscription_plan: company.subscription_plan
+        name: company.name
       },
       user: {
         id: ownerUserId,
-        email: ownerEmail
-      }
+        email: ownerEmail,
+        role: 'admin'
+      },
+      permissions: sidebarItems
     });
 
   } catch (error) {
@@ -170,6 +154,7 @@ async function createSampleData(admin: any, companyId: string, userId: string) {
       .insert({
         name: 'Walk-in Customer',
         email: 'walkin@example.com',
+        phone: '555-0123',
         company_id: companyId,
         user_uid: userId,
         status: 'active'
