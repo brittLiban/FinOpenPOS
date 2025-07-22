@@ -12,6 +12,13 @@ const nextConfig = {
     // Optimize for production
     optimizeCss: true,
   },
+  webpack: (config, { dev, isServer }) => {
+    // Fix webpack caching issues in development
+    if (dev) {
+      config.cache = false;
+    }
+    return config;
+  },
 };
 
 export default nextConfig;

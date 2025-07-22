@@ -2,26 +2,32 @@
 import { NextResponse } from 'next/server';
 
 export async function GET() {
-  const supabase = createClient();
+  try {
+    const supabase = createClient();
 
-  // Use a database function or view for better performance
-  const { data, error } = await supabase
-    .rpc('get_low_stock_products');
-
-  if (error) {
-    // Fallback to manual query if RPC doesn't exist
-    const { data: fallbackData, error: fallbackError } = await supabase
+    // Query for low stock products directly
+    const { data, error } = await supabase
       .from('products')
       .select('id, name, in_stock, low_stock_threshold')
       .eq('archived', false)
-      .filter('in_stock', 'lte', 'low_stock_threshold');
+      .not('low_stock_threshold', 'is', null);
 
-    if (fallbackError) {
-      return NextResponse.json({ error: fallbackError.message }, { status: 500 });
+    if (error) {
+      console.error('Low stock query error:', error);
+      return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json({ lowStock: fallbackData || [] });
-  }
+    // Filter for products where in_stock <= low_stock_threshold
+    const lowStockProducts = data?.filter(product => 
+      product.in_stock <= product.low_stock_threshold
+    ) || [];
 
-  return NextResponse.json({ lowStock: data || [] });
+    return NextResponse.json({ lowStock: lowStockProducts });
+  } catch (err: any) {
+    console.error('Unexpected error in low-stock route:', err);
+    return NextResponse.json({ 
+      error: 'Internal server error',
+      details: err.message 
+    }, { status: 500 });
+  }
 }
