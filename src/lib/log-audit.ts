@@ -7,7 +7,7 @@ import { createClient } from './supabase/client';
  * @param entityType - e.g. 'employee', 'product', 'order', etc.
  * @param entityId - ID of the affected entity (string for flexibility)
  * @param details - Arbitrary details about the change (object will be stored as JSON)
- * @param companyId - UUID of the company (required for multi-tenancy)
+ * @param companyId - UUID of the company (REQUIRED for multi-tenancy)
  */
 export async function logAudit({
   userId,
@@ -22,12 +22,20 @@ export async function logAudit({
   entityType: string,
   entityId?: string,
   details?: any,
-  companyId?: string
+  companyId: string // Made required to prevent audit log mixing
 }) {
   const supabase = createClient();
   
-  // Fallback company_id if not provided (should be updated to use proper company_id)
-  const finalCompanyId = companyId || '00000000-0000-0000-0000-000000000000';
+  // SECURITY: company_id is now required to prevent audit log data mixing
+  if (!companyId) {
+    throw new Error('company_id is required for audit logging to maintain multi-tenant isolation');
+  }
+  
+  // Validate UUID format
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  if (!uuidRegex.test(companyId)) {
+    throw new Error(`Invalid company_id format: ${companyId}`);
+  }
   
   await supabase.from('audit_log').insert([
     {
@@ -36,7 +44,7 @@ export async function logAudit({
       entity_type: entityType,
       entity_id: entityId,
       details,
-      company_id: finalCompanyId
+      company_id: companyId
     }
   ]);
 }

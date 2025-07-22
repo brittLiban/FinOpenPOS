@@ -1,5 +1,7 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedCompanyId } from '@/lib/supabase/getAuthenticatedCompanyId';
+
+
 
 export async function GET() {
   try {

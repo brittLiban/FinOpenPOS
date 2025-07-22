@@ -1,6 +1,8 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 
+
+
 // GET all employees
 export async function GET(request: Request) {
   const supabase = createClient();

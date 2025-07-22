@@ -1,4 +1,6 @@
 import { NextRequest } from 'next/server';
+
+
 // GET: List returns with product name
 export async function GET(req: NextRequest) {
   const supabase = createClient();

@@ -27,6 +27,8 @@ function getStartDate(range: Range): string {
   return now.toISOString().split('T')[0];
 }
 
+
+
 export async function GET(request: Request) {
   const supabase = createClient();
   const { searchParams } = new URL(request.url);

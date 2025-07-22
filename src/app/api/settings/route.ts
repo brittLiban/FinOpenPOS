@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/service";
 
+
+
 // GET /api/settings?key=tax_rate
 export async function GET(req: NextRequest) {
   const supabase = createAdminClient();

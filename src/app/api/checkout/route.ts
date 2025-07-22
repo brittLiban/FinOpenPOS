@@ -8,19 +8,9 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2025-06-30.basil",
 });
 
+
+
 export async function POST(req: NextRequest) {
-  // Helper for audit logging
-  const logCheckoutAudit = async (actionType: string, details: any) => {
-    const { logAudit } = await import("@/lib/log-audit");
-    // No user context here, so userId is null
-    await logAudit({
-      userId: null,
-      actionType,
-      entityType: 'checkout',
-      details
-    });
-  };
-  
   const domain = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
   const body = await req.json();
 
@@ -44,6 +34,18 @@ export async function POST(req: NextRequest) {
     if (!profile?.company_id) {
       return NextResponse.json({ error: 'No company associated with user' }, { status: 400 });
     }
+
+    // Helper for audit logging with proper company_id
+    const logCheckoutAudit = async (actionType: string, details: any) => {
+      const { logAudit } = await import("@/lib/log-audit");
+      await logAudit({
+        userId: user.id,
+        actionType,
+        entityType: 'checkout',
+        details,
+        companyId: profile.company_id
+      });
+    };
 
     const { data: company } = await supabase
       .from('companies')

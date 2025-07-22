@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { getAuthenticatedCompanyId } from '@/lib/supabase/getAuthenticatedCompanyId';
 
+// This route uses cookies and must be dynamic
+
 export async function GET() {
   try {
     const { companyId, supabase } = await getAuthenticatedCompanyId();

@@ -5,20 +5,26 @@ import { User } from '@supabase/supabase-js';
 
 /**
  * Extracts the company_id (tenant id) from a Supabase user object.
- * Uses a default company_id if not found for demo purposes.
+ * PRODUCTION-READY: Throws error if company_id is missing to prevent data leaks.
  *
  * @param user Supabase user object
  * @returns company_id (uuid string)
+ * @throws Error if company_id is not found
  */
 export function getCompanyId(user: User): string {
-  // If you store company_id in user.user_metadata
-  let companyId = user.user_metadata?.company_id;
+  // Get company_id from user.user_metadata
+  const companyId = user.user_metadata?.company_id;
   
   if (!companyId) {
-    // Use a default company_id for demo purposes
-    // In production, you'd want to handle this differently
-    companyId = '00000000-0000-0000-0000-000000000001';
-    console.log(`Using default company_id ${companyId} for user ${user.email}`);
+    // SECURITY: Never use default company_id in production
+    // This prevents accidental data leaks between tenants
+    throw new Error(`No company_id found for user ${user.email}. User needs to be assigned to a company.`);
+  }
+  
+  // Validate it's a proper UUID format
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  if (!uuidRegex.test(companyId)) {
+    throw new Error(`Invalid company_id format for user ${user.email}: ${companyId}`);
   }
   
   return companyId;

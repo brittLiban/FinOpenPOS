@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedCompanyId } from '@/lib/supabase/getAuthenticatedCompanyId';
 
+
+
 export async function GET(request: NextRequest) {
   try {
     const { user, companyId, supabase } = await getAuthenticatedCompanyId();
