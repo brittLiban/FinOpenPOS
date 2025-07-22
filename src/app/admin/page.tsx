@@ -22,7 +22,8 @@ import {
   PackageIcon,
   AlertTriangleIcon,
   EyeIcon,
-  RefreshCwIcon
+  RefreshCwIcon,
+  PlusCircleIcon
 } from "lucide-react";
 import {
   Pie,
@@ -98,6 +99,9 @@ export default function Page() {
   const [revenueRange, setRevenueRange] = useState('30d');
   const [ordersRange, setOrdersRange] = useState('30d');
   const [ordersHistory, setOrdersHistory] = useState<any[]>([]);
+  const [expenseBreakdown, setExpenseBreakdown] = useState<any>({});
+  const [recentExpenses, setRecentExpenses] = useState<any[]>([]);
+  const [monthlyRecurringCosts, setMonthlyRecurringCosts] = useState(0);
 
   // Auto-sync products to Stripe
   const autoSyncProducts = async () => {
@@ -127,7 +131,9 @@ export default function Page() {
           profitMarginRes,
           lowStockRes,
           revenueHistoryRes,
-          ordersHistoryRes
+          ordersHistoryRes,
+          expenseBreakdownRes,
+          recentExpensesRes
         ] = await Promise.all([
           fetch('/api/admin/revenue/total'),
           fetch('/api/admin/expenses/total'),
@@ -138,7 +144,9 @@ export default function Page() {
           fetch('/api/admin/profit/margin'),
           fetch('/api/products/low-stock'),
           fetch(`/api/admin/revenue/history?range=${revenueRange}`),
-          fetch(`/api/admin/orders/history?range=${ordersRange}`)
+          fetch(`/api/admin/orders/history?range=${ordersRange}`),
+          fetch('/api/expenses?breakdown=true'),
+          fetch('/api/expenses?recent=true&limit=5')
         ]);
 
         const revenue = await revenueRes.json();
@@ -151,10 +159,15 @@ export default function Page() {
         const { lowStock: low } = await lowStockRes.json();
         const { history: revenueHistoryData } = await revenueHistoryRes.json();
         const { history: ordersHistoryData } = await ordersHistoryRes.json();
+        const expenseBreakdownData = await expenseBreakdownRes.json();
+        const recentExpensesData = await recentExpensesRes.json();
 
         setTotalRevenue(toNumber(revenue.totalRevenue));
         setTotalExpenses(toNumber(expenses.totalExpenses));
-        setTotalProfit(toNumber(profit.totalProfit));
+        
+        // Calculate profit locally: Revenue - Expenses
+        const calculatedProfit = toNumber(revenue.totalRevenue) - toNumber(expenses.totalExpenses);
+        setTotalProfit(calculatedProfit);
         setCashFlow(Object.entries(cashFlowData.cashFlow).map(([date, amount]) => ({ date, amount })));
         setRevenueByCategory(revenueByCategoryData.revenueByCategory);
         
@@ -171,11 +184,16 @@ export default function Page() {
         setLowStock(low);
         setRevenueHistory(revenueHistoryData || []);
         setOrdersHistory(ordersHistoryData || []);
+        setExpenseBreakdown(expenseBreakdownData.expenses || {});
+        setRecentExpenses(recentExpensesData.expenses || []);
+        
+        // Calculate monthly recurring costs
+        const recurringCosts = Object.values(expenseBreakdownData.expenses || {}).reduce((sum: number, amount: any) => sum + (amount || 0), 0);
+        setMonthlyRecurringCosts(recurringCosts);
         
         // Calculate enhanced business metrics from existing data
         const totalOrders = ordersHistoryData?.length || 0;
         const averageOrderValue = totalOrders > 0 ? toNumber(revenue.totalRevenue) / totalOrders : 0;
-        const platformFeesEarned = toNumber(revenue.totalRevenue) * 0.025; // Assuming 2.5% platform fee
         
         setBusinessMetrics({
           totalRevenue: toNumber(revenue.totalRevenue),
@@ -187,7 +205,7 @@ export default function Page() {
           topSellingProduct: allProductStats[0]?.name || 'N/A',
           revenueToday: toNumber(revenue.totalRevenue) * 0.1, // Estimate today's revenue
           ordersToday: Math.floor(totalOrders * 0.1), // Estimate today's orders
-          platformFeesEarned
+          platformFeesEarned: 0 // Not relevant for business owners
         });
         
         setLastUpdated(new Date());
@@ -308,13 +326,15 @@ export default function Page() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Platform Fees Earned</CardTitle>
+            <CardTitle className="text-sm font-medium">Net Profit</CardTitle>
             <TrendingUpIcon className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">${businessMetrics.platformFeesEarned.toFixed(2)}</div>
+            <div className={`text-2xl font-bold ${totalProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+              ${totalProfit.toFixed(2)}
+            </div>
             <p className="text-xs text-muted-foreground">
-              Your revenue share
+              {totalRevenue > 0 ? ((totalProfit / totalRevenue) * 100).toFixed(1) : 0}% profit margin
             </p>
           </CardContent>
         </Card>
@@ -359,7 +379,7 @@ export default function Page() {
             </div>
             <div className="flex justify-between items-center">
               <span className="text-muted-foreground">Profit Margin</span>
-              <span className="font-bold">
+              <span className={`font-bold ${totalRevenue > 0 && (totalProfit / totalRevenue) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                 {totalRevenue > 0 ? ((totalProfit / totalRevenue) * 100).toFixed(1) : 0}%
               </span>
             </div>
@@ -476,6 +496,83 @@ export default function Page() {
           </ChartContainer>
         </CardContent>
       </Card>
+
+      {/* Expense Analytics Section */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Expense Breakdown</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {Object.entries(expenseBreakdown).map(([category, amount]: [string, any]) => (
+                <div key={category} className="flex justify-between items-center">
+                  <span className="text-sm text-muted-foreground capitalize">{category}</span>
+                  <span className="font-semibold text-red-600">${Number(amount).toFixed(2)}</span>
+                </div>
+              ))}
+              {Object.keys(expenseBreakdown).length === 0 && (
+                <div className="text-sm text-muted-foreground text-center py-4">
+                  No expenses recorded yet
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Monthly Recurring Costs</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-bold text-red-600 mb-2">
+              ${monthlyRecurringCosts.toFixed(2)}
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Fixed costs per month
+            </p>
+            <div className="mt-4">
+              <Button variant="outline" size="sm" asChild>
+                <a href="/admin/expenses">
+                  <PlusCircleIcon className="h-4 w-4 mr-2" />
+                  Manage Expenses
+                </a>
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Recent Expenses</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {recentExpenses.slice(0, 3).map((expense: any, index: number) => (
+                <div key={expense.id || index} className="flex justify-between items-center border-b pb-2">
+                  <div className="flex flex-col">
+                    <span className="text-sm font-medium">{expense.name}</span>
+                    <span className="text-xs text-muted-foreground capitalize">{expense.category}</span>
+                  </div>
+                  <span className="font-semibold text-red-600">${expense.amount?.toFixed(2)}</span>
+                </div>
+              ))}
+              {recentExpenses.length === 0 && (
+                <div className="text-sm text-muted-foreground text-center py-4">
+                  No recent expenses
+                </div>
+              )}
+              {recentExpenses.length > 3 && (
+                <div className="text-center pt-2">
+                  <Button variant="link" size="sm" asChild>
+                    <a href="/admin/expenses">View all expenses</a>
+                  </Button>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

@@ -11,6 +11,7 @@ import {
   CreditCardIcon,
   SettingsIcon,
   Building2Icon,
+  ReceiptIcon,
 } from "lucide-react";
 
 export const SIDEBAR_ITEMS = [
@@ -25,6 +26,7 @@ export const SIDEBAR_ITEMS = [
   { key: "employees", label: "Employees", path: "/admin/employees", icon: UsersIcon },
   { key: "user-roles", label: "User Roles", path: "/admin/user-roles", icon: UsersIcon },
   { key: "returns", label: "Returns", path: "/admin/returns", icon: Undo2Icon },
+  { key: "expenses", label: "Expenses", path: "/admin/expenses", icon: ReceiptIcon },
   { key: "checkout", label: "Checkout", path: "/admin/checkout", icon: CreditCardIcon },
   { key: "stripe-settings", label: "Payment Settings", path: "/admin/settings/stripe", icon: SettingsIcon },
   { key: "stripe-accounts", label: "Connected Accounts", path: "/admin/stripe-accounts", icon: Building2Icon },
