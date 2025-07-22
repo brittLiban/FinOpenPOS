@@ -392,7 +392,9 @@ export default function UserRolesPage() {
                   {user.email || user.user_id}
                 </div>
                 <div className="text-sm text-gray-500">
-                  {user.role_names ? `Current role: ${user.role_names}` : 'No role assigned'}
+                  {user.role_names && user.role_names.length > 0 
+                    ? `Current role: ${Array.isArray(user.role_names) ? user.role_names.join(', ') : user.role_names}` 
+                    : 'No role assigned'}
                 </div>
                 <div className="text-xs text-muted-foreground mt-1">
                   <b>Company ID:</b> {user.company_id || 'N/A'}

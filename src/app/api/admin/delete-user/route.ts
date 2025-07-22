@@ -23,18 +23,33 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Get current user's profile and company
-    const { data: currentProfile } = await supabase
+    // Get current user's profile and company (using correct schema)
+    const { data: currentProfile, error: profileError } = await supabase
       .from('profiles')
-      .select('company_id, role')
+      .select('company_id, email')
       .eq('id', currentUser.id)
       .single();
 
-    console.log('Current user profile:', currentProfile);
+    console.log('Current user profile from profiles table:', currentProfile);
+    console.log('Profile error:', profileError);
+
+    // Also check company_users table for role info
+    const { data: currentCompanyUser, error: currentCompanyUserError } = await supabase
+      .from('company_users')
+      .select('company_id, role')
+      .eq('user_id', currentUser.id)
+      .single();
+
+    console.log('Current user from company_users table:', currentCompanyUser);
+    console.log('Company user error:', currentCompanyUserError);
+
+    // Use either profiles.company_id or company_users.company_id
+    const userCompanyId = currentProfile?.company_id || currentCompanyUser?.company_id;
+    console.log('User company ID:', userCompanyId);
     console.log('User ID to delete:', userId);
     console.log('Current user ID:', currentUser.id);
 
-    if (!currentProfile?.company_id) {
+    if (!userCompanyId) {
       console.log('Access denied: No company_id found for current user');
       return NextResponse.json({ error: 'Access denied - no company found' }, { status: 403 });
     }
@@ -44,23 +59,24 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: 'Cannot delete your own account' }, { status: 400 });
     }
 
-    // Get user details before deletion for audit log
-    const { data: targetProfile } = await supabase
+    // Get target user details using correct schema
+    const { data: targetProfile, error: targetProfileError } = await supabase
       .from('profiles')
-      .select('email, company_id, role')
+      .select('email, company_id')
       .eq('id', userId)
       .single();
 
     console.log('Target user profile:', targetProfile);
+    console.log('Target profile error:', targetProfileError);
 
-    if (!targetProfile) {
+    if (targetProfileError || !targetProfile) {
       console.log('User not found:', userId);
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
     // Verify user belongs to same company
-    if (targetProfile.company_id !== currentProfile.company_id) {
-      console.log('Company mismatch - Current:', currentProfile.company_id, 'Target:', targetProfile.company_id);
+    if (targetProfile.company_id !== userCompanyId) {
+      console.log('Company mismatch - Current:', userCompanyId, 'Target:', targetProfile.company_id);
       return NextResponse.json({ error: 'Access denied - different company' }, { status: 403 });
     }
 
@@ -93,13 +109,13 @@ export async function DELETE(req: NextRequest) {
     }
 
     // Remove from company_users if exists
-    const { error: companyUserError } = await admin
+    const { error: deleteCompanyUserError } = await admin
       .from('company_users')
       .delete()
       .eq('user_id', userId);
     
-    if (companyUserError) {
-      console.warn('Error removing company users:', companyUserError);
+    if (deleteCompanyUserError) {
+      console.warn('Error removing company users:', deleteCompanyUserError);
     }
 
     // Update any records that reference this user to NULL instead of deleting them
@@ -147,15 +163,15 @@ export async function DELETE(req: NextRequest) {
 
     // Step 2: Delete the user profile
     console.log('Deleting user profile...');
-    const { error: profileError } = await admin
+    const { error: deleteProfileError } = await admin
       .from('profiles')
       .delete()
       .eq('id', userId);
     
-    if (profileError) {
-      console.error('Error deleting profile:', profileError);
+    if (deleteProfileError) {
+      console.error('Error deleting profile:', deleteProfileError);
       return NextResponse.json({ 
-        error: `Failed to delete user profile: ${profileError.message}` 
+        error: `Failed to delete user profile: ${deleteProfileError.message}` 
       }, { status: 500 });
     }
 
@@ -179,7 +195,7 @@ export async function DELETE(req: NextRequest) {
       actionType: 'delete',
       entityType: 'user',
       entityId: userId,
-      companyId: currentProfile.company_id,
+      companyId: currentProfile?.company_id,
       details: { 
         deletedUser: targetProfile,
         message: 'User and associated data removed'
