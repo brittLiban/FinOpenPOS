@@ -7,6 +7,9 @@ import { logAudit } from "@/lib/log-audit";
 
 // Add a new user to profiles and optionally assign a role
 export async function addUser(email: string, password: string, role_id?: number, companyId?: string, adminUserId?: string) {
+  console.log('=== ADD USER FUNCTION START ===');
+  console.log('Parameters:', { email, role_id, companyId, adminUserId });
+  
   const admin = createAdminClient();
   
   if (!companyId) {
@@ -15,93 +18,105 @@ export async function addUser(email: string, password: string, role_id?: number,
   
   console.log('Creating user with company_id:', companyId);
   
-  // Create user in Supabase Auth (service role) with company_id in metadata
-  const { data: userData, error: authError } = await admin.auth.admin.createUser({
-    email,
-    password,
-    email_confirm: true,
-    user_metadata: { company_id: companyId }
-  });
-  if (authError) throw authError;
-  const user_id = userData?.user?.id;
-  if (!user_id) throw new Error('Failed to create user.');
-  
-  // Insert into profiles with company_id
-  const { error: profileError } = await admin.from('profiles').insert({ 
-    id: user_id, 
-    email, 
-    company_id: companyId 
-  });
-  if (profileError) throw profileError;
-  
-  // Optionally assign a role via sidebar_permissions
-  if (role_id) {
-    // Get role name to determine appropriate permissions
-    const { data: roleData } = await admin
-      .from('roles')
-      .select('name')
-      .eq('id', role_id)
-      .single();
-    
-    const roleName = roleData?.name?.toLowerCase() || 'employee';
-    
-    // Define permissions by role
-    let sidebarItems: string[] = [];
-    
-    switch (roleName) {
-      case 'admin':
-        sidebarItems = [
-          'dashboard', 'pos', 'orders', 'products', 'customers', 
-          'employees', 'inventory', 'returns', 'settings', 'audit-log'
-        ];
-        break;
-      case 'manager':
-        sidebarItems = [
-          'dashboard', 'pos', 'orders', 'products', 'customers', 
-          'inventory', 'returns'
-        ];
-        break;
-      case 'cashier':
-        sidebarItems = [
-          'dashboard', 'pos', 'orders', 'customers', 'returns'
-        ];
-        break;
-      case 'employee':
-      default:
-        sidebarItems = ['dashboard', 'pos'];
-        break;
-    }
-    
-    const permissionInserts = sidebarItems.map(item => ({
-      user_id,
-      role_id,
-      company_id: companyId,
-      item_key: item,
-      enabled: true
-    }));
-    
-    const { error: permissionError } = await admin
-      .from('sidebar_permissions')
-      .insert(permissionInserts);
-    if (permissionError) throw permissionError;
-  }
-  
-  // Audit log for user creation
-  await logAudit({
-    userId: adminUserId || null,
-    actionType: 'create',
-    entityType: 'user',
-    entityId: user_id,
-    companyId: companyId,
-    details: {
+  try {
+    // Create user in Supabase Auth (service role) with company_id in metadata
+    console.log('Creating auth user...');
+    const { data: userData, error: authError } = await admin.auth.admin.createUser({
       email,
-      role_id,
-      company_id: companyId,
-      created_via: 'admin_panel'
+      password,
+      email_confirm: true,
+      user_metadata: { company_id: companyId }
+    });
+    
+    if (authError) {
+      console.error('Auth creation error:', authError);
+      throw authError;
     }
-  });
-  
-  return user_id;
+    
+    const user_id = userData?.user?.id;
+    if (!user_id) {
+      console.error('No user ID returned from auth creation');
+      throw new Error('Failed to create user.');
+    }
+    
+    console.log('Auth user created with ID:', user_id);
+    
+    // Insert into profiles with company_id
+    console.log('Inserting into profiles...');
+    const { error: profileError } = await admin.from('profiles').insert({ 
+      id: user_id, 
+      email, 
+      company_id: companyId 
+    });
+    
+    if (profileError) {
+      console.error('Profile creation error:', profileError);
+      throw profileError;
+    }
+    
+    console.log('Profile created successfully');
+    
+    // Add user to company_users table
+    console.log('Adding to company_users...');
+    const { error: companyUserError } = await admin
+      .from('company_users')
+      .insert({
+        user_id,
+        company_id: companyId,
+        role: role_id ? (await admin.from('roles').select('name').eq('id', role_id).single()).data?.name || 'employee' : 'employee'
+      });
+    
+    if (companyUserError) {
+      console.error('Company user creation error:', companyUserError);
+      throw companyUserError;
+    }
+    
+    console.log('Company user association created');
+    
+    // Optionally assign a role via user_roles
+    if (role_id) {
+      console.log('Adding to user_roles...');
+      const { error: roleError } = await admin
+        .from('user_roles')
+        .insert({
+          user_id,
+          role_id,
+          tenant_id: companyId,
+          company_id: companyId
+        });
+      
+      if (roleError) {
+        console.error('User role creation error:', roleError);
+        throw roleError;
+      }
+      
+      console.log('User role assignment created');
+    }
+    
+    // Audit log for user creation
+    console.log('Creating audit log...');
+    await logAudit({
+      userId: adminUserId || null,
+      actionType: 'create',
+      entityType: 'user',
+      entityId: user_id,
+      companyId: companyId,
+      details: {
+        email,
+        role_id,
+        company_id: companyId,
+        created_via: 'admin_panel'
+      }
+    });
+    
+    console.log('=== ADD USER FUNCTION SUCCESS ===');
+    return user_id;
+    
+  } catch (error: any) {
+    console.error('=== ADD USER FUNCTION ERROR ===', error);
+    console.error('Error details:', error.details || error.message);
+    throw error;
+  }
 }
 
 // Delete a user from profiles (and cascade if needed)
@@ -194,6 +209,7 @@ export async function deleteUser(user_id: string, adminUserId?: string) {
       actionType: 'delete',
       entityType: 'user',
       entityId: user_id,
+      companyId: userProfile?.company_id || '',
       details: { 
         deletedUser: userProfile,
         permissions: userPermissions,
@@ -247,9 +263,24 @@ export async function updateUserRole(user_id: string, role_id: number) {
     
   if (!profile?.company_id) throw new Error('User profile not found');
   
+  // Remove existing user_roles entries for this user
+  await supabase
+    .from("user_roles")
+    .delete()
+    .eq("user_id", user_id);
+  
+  // Add new user_role entry
+  const { error: roleError } = await supabase
+    .from("user_roles")
+    .insert({
+      user_id: user_id,
+      role_id: role_id,
+      tenant_id: profile.company_id,
+      company_id: profile.company_id
+    });
+    
+  if (roleError) throw roleError;
+  
   // Remove old user-specific permissions (users should inherit from role)
   await supabase.from("sidebar_permissions").delete().eq("user_id", user_id);
-  
-  // No need to create user-specific permissions - they inherit from role
-  // The sidebar permissions will be checked via role membership
 }
