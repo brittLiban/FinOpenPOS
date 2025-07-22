@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/service';
 
+// This API route uses authentication and must be dynamic
+export const dynamic = 'force-dynamic';
+
 
 
 export async function GET(req: NextRequest) {
