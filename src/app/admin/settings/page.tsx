@@ -5,6 +5,7 @@ import { SIDEBAR_ITEMS } from "@/lib/sidebar-items";
 import { getAllRoles } from "@/app/admin/user-roles/role-utils";
 // import { createClient } from "@/lib/supabase/client";
 import LanguagePicker from "@/components/language-picker";
+import RolePermissionsManager from "@/components/admin/RolePermissionsManager";
 
 import { createClient } from "@/lib/supabase/client";
 
@@ -229,6 +230,14 @@ export default function SettingsPage() {
           )}
         </div>
       )}
+      
+      {/* Role Permissions Management (Admin Only) */}
+      {userRole === 'admin' && (
+        <div className="mb-8">
+          <RolePermissionsManager />
+        </div>
+      )}
+
       {/* Tax Rate Setting (Admin Only) */}
       {userRole === 'admin' && (
         <div className="mb-8">

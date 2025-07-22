@@ -60,25 +60,36 @@ export async function POST(req: NextRequest) {
 
     // Company user relationship is now handled through profiles table
 
-    // Create default admin role for this company (now with proper unique constraint)
-    const { data: adminRole, error: roleError } = await admin
+    // Create all default roles for this company
+    const defaultRoles = [
+      { name: 'admin', description: 'Full access to all features' },
+      { name: 'manager', description: 'Manage inventory, view reports' },
+      { name: 'cashier', description: 'Process sales and returns' },
+      { name: 'employee', description: 'Basic access to POS' }
+    ];
+
+    const rolesToCreate = defaultRoles.map(role => ({
+      name: role.name,
+      company_id: company.id
+    }));
+
+    const { data: createdRoles, error: roleError } = await admin
       .from('roles')
-      .insert({
-        name: 'admin',
-        company_id: company.id
-      })
-      .select()
-      .single();
+      .insert(rolesToCreate)
+      .select();
 
     if (roleError) {
-      console.error('Failed to create admin role:', roleError);
+      console.error('Failed to create roles:', roleError);
       return NextResponse.json(
-        { error: 'Failed to create admin role', details: roleError.message }, 
+        { error: 'Failed to create roles', details: roleError.message }, 
         { status: 500 }
       );
     }
 
-    // Assign admin role to owner via sidebar_permissions (with company_id)
+    // Find the admin role (company owner must always be admin)
+    const adminRole = createdRoles.find(role => role.name === 'admin') || createdRoles[0];
+
+    // Assign admin permissions to company owner
     const sidebarItems = [
       'dashboard', 'pos', 'orders', 'products', 'customers', 
       'employees', 'inventory', 'returns', 'settings', 'audit-log'
@@ -111,8 +122,8 @@ export async function POST(req: NextRequest) {
       userId: ownerUserId,
       companyId: company.id,
       companyName: company.name,
-      adminRoleName: 'admin',
-      adminRoleId: adminRole.id,
+      roleName: 'admin',
+      roleId: adminRole.id,
       permissionsCount: sidebarItems.length
     });
 
@@ -127,7 +138,8 @@ export async function POST(req: NextRequest) {
         email: ownerEmail,
         role: 'admin'
       },
-      permissions: sidebarItems
+      permissions: sidebarItems,
+      availableRoles: createdRoles.map(r => ({ id: r.id, name: r.name }))
     });
 
   } catch (error) {

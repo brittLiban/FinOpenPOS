@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { getAllRoles, updateUserRole, addUser, deleteUser } from "./role-utils";
+import { getAllRoles, updateUserRole, addUser } from "./role-utils";
 
 export default function UserRolesPage() {
   const [pwResetUser, setPwResetUser] = useState<string | null>(null);
@@ -106,7 +106,16 @@ export default function UserRolesPage() {
     setError(null);
     setSuccess(null);
     try {
-      await deleteUser(userId, currentUserId || undefined);
+      const response = await fetch(`/api/admin/delete-user?userId=${userId}`, {
+        method: 'DELETE'
+      });
+      
+      const result = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to delete user');
+      }
+      
       setSuccess("User deleted successfully.");
       // Refresh users
       const supabase = createClient();

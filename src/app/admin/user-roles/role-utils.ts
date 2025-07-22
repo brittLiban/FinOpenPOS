@@ -36,8 +36,42 @@ export async function addUser(email: string, password: string, role_id?: number,
   
   // Optionally assign a role via sidebar_permissions
   if (role_id) {
-    // Create basic sidebar permissions for the role
-    const sidebarItems = ['dashboard', 'pos'];
+    // Get role name to determine appropriate permissions
+    const { data: roleData } = await admin
+      .from('roles')
+      .select('name')
+      .eq('id', role_id)
+      .single();
+    
+    const roleName = roleData?.name?.toLowerCase() || 'employee';
+    
+    // Define permissions by role
+    let sidebarItems: string[] = [];
+    
+    switch (roleName) {
+      case 'admin':
+        sidebarItems = [
+          'dashboard', 'pos', 'orders', 'products', 'customers', 
+          'employees', 'inventory', 'returns', 'settings', 'audit-log'
+        ];
+        break;
+      case 'manager':
+        sidebarItems = [
+          'dashboard', 'pos', 'orders', 'products', 'customers', 
+          'inventory', 'returns'
+        ];
+        break;
+      case 'cashier':
+        sidebarItems = [
+          'dashboard', 'pos', 'orders', 'customers', 'returns'
+        ];
+        break;
+      case 'employee':
+      default:
+        sidebarItems = ['dashboard', 'pos'];
+        break;
+    }
+    
     const permissionInserts = sidebarItems.map(item => ({
       user_id,
       role_id,
@@ -213,19 +247,9 @@ export async function updateUserRole(user_id: string, role_id: number) {
     
   if (!profile?.company_id) throw new Error('User profile not found');
   
-  // Remove old permissions
+  // Remove old user-specific permissions (users should inherit from role)
   await supabase.from("sidebar_permissions").delete().eq("user_id", user_id);
   
-  // Assign new role with basic permissions
-  const sidebarItems = ['dashboard', 'pos', 'orders', 'products', 'customers'];
-  const permissionInserts = sidebarItems.map(item => ({
-    user_id,
-    role_id,
-    company_id: profile.company_id,
-    item_key: item,
-    enabled: true
-  }));
-  
-  const { error } = await supabase.from("sidebar_permissions").insert(permissionInserts);
-  if (error) throw error;
+  // No need to create user-specific permissions - they inherit from role
+  // The sidebar permissions will be checked via role membership
 }
