@@ -58,16 +58,28 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
     supabase.auth.getUser().then(async ({ data }) => {
       setUser(data.user);
       if (data.user) {
-        // Use the same RPC as user roles management page
-        const { data: rolesData, error } = await supabase.rpc('get_users_with_roles');
-        if (!error && Array.isArray(rolesData)) {
-          const userRow = rolesData.find((u: any) => u.user_id === data.user.id);
-          setRole(userRow?.role_names || 'No role assigned');
-          setRoleId(userRow?.role_id || null);
+        // Get user's roles using the correct schema relationships
+        const { data: userRolesData } = await supabase
+          .from('user_roles')
+          .select(`
+            role_id,
+            roles (
+              id,
+              name
+            )
+          `)
+          .eq('user_id', data.user.id);
+
+        if (userRolesData && userRolesData.length > 0) {
+          const userRole = userRolesData[0];
+          const roleName = (userRole.roles as any)?.name || 'No role assigned';
+          setRole(roleName);
+          setRoleId(userRole.role_id);
         } else {
           setRole('No role assigned');
           setRoleId(null);
         }
+
         // Fetch company_id from profiles table
         const { data: profile, error: profileError } = await supabase
           .from('profiles')
@@ -114,20 +126,30 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
           perms[item.key] = true; // Always show checkout
           return;
         }
+        
         // Per-user override takes precedence
         const userFound = userPerms?.find((row: any) => row.item_key === item.key);
         if (userFound) {
           perms[item.key] = userFound.enabled;
-        } else {
-          // Fallback to role-based
+        } else if (roleId) {
+          // Fallback to role-based permissions
           const roleFound = rolePerms?.find((row: any) => row.item_key === item.key);
-          if (role === 'admin') {
-            perms[item.key] = roleFound ? roleFound.enabled : true;
+          if (roleFound) {
+            perms[item.key] = roleFound.enabled;
           } else {
-            perms[item.key] = roleFound ? roleFound.enabled : false;
+            // If no explicit permission found, default based on role
+            if (role === 'admin') {
+              perms[item.key] = true; // Admin gets everything by default
+            } else {
+              perms[item.key] = false; // Other roles get nothing by default unless explicitly granted
+            }
           }
+        } else {
+          // No role assigned
+          perms[item.key] = false;
         }
       });
+      
       setSidebarPerms(perms);
       setPermsLoaded(true);
     })();
