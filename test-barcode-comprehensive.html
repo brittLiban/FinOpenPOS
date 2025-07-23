@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FinOpenPOS Barcode Scanner Test Suite</title>
+    <script src="https://unpkg.com/@zxing/browser@latest/dist/zxing-browser.min.js"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f8f9fa;
+        }
+        
+        .header {
+            background: #007bff;
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        
+        .test-section {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        #video {
+            width: 100%;
+            max-width: 400px;
+            height: 300px;
+            border: 2px solid #ccc;
+            border-radius: 8px;
+            background: #000;
+        }
+        
+        .controls {
+            margin: 20px 0;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        
+        button {
+            padding: 10px 20px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        
+        button.secondary {
+            background: #6c757d;
+        }
+        
+        button.success {
+            background: #28a745;
+        }
+        
+        button.danger {
+            background: #dc3545;
+        }
+        
+        .result {
+            margin: 20px 0;
+            padding: 15px;
+            background: #d4edda;
+            border-radius: 4px;
+            border-left: 4px solid #28a745;
+        }
+        
+        .error {
+            background: #f8d7da;
+            border-left-color: #dc3545;
+        }
+        
+        .test-barcodes {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        
+        .barcode-card {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 15px;
+            text-align: center;
+        }
+        
+        .barcode-image {
+            width: 100%;
+            max-width: 150px;
+            height: 50px;
+            background: white;
+            border: 1px solid #ccc;
+            margin: 10px auto;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+        }
+        
+        .manual-input {
+            margin: 20px 0;
+        }
+        
+        .manual-input input {
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            width: 200px;
+            margin-right: 10px;
+        }
+        
+        .camera-info {
+            background: #e9ecef;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 15px 0;
+        }
+        
+        .device-integration {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 4px;
+            padding: 20px;
+            margin-top: 20px;
+        }
+        
+        .integration-steps {
+            background: white;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 15px;
+            margin: 10px 0;
+        }
+        
+        .step-number {
+            background: #007bff;
+            color: white;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            margin-right: 10px;
+        }
+        
+        code {
+            background: #f8f9fa;
+            padding: 2px 4px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+        }
+        
+        .test-results {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 15px;
+            margin: 15px 0;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🛒 FinOpenPOS Barcode Scanner Test Suite</h1>
+        <p>Comprehensive testing for camera-based and physical barcode scanners</p>
+    </div>
+    
+    <!-- Camera Scanner Test -->
+    <div class="test-section">
+        <h2>📷 Camera Scanner Test</h2>
+        
+        <div class="controls">
+            <button onclick="startScanning()" id="startBtn">Start Camera</button>
+            <button onclick="stopScanning()" id="stopBtn" class="danger" disabled>Stop Camera</button>
+            <button onclick="listCameras()" class="secondary">List Cameras</button>
+            <button onclick="testDecodeFromImage()" class="success">Test with Sample Image</button>
+        </div>
+        
+        <video id="video" autoplay muted></video>
+        
+        <div id="camera-info" class="camera-info"></div>
+        <div id="result"></div>
+    </div>
+    
+    <!-- Manual Input Test -->
+    <div class="test-section">
+        <h2>⌨️ Manual Barcode Input Test</h2>
+        <p>Test the barcode logic without camera scanning:</p>
+        
+        <div class="manual-input">
+            <input type="text" id="manualBarcode" placeholder="Enter barcode manually" />
+            <button onclick="testManualBarcode()">Test Barcode</button>
+            <button onclick="clearManual()" class="secondary">Clear</button>
+        </div>
+        
+        <div class="test-barcodes">
+            <div class="barcode-card">
+                <h4>Coca-Cola Can</h4>
+                <div class="barcode-image">049000050202</div>
+                <button onclick="testBarcode('049000050202')" class="secondary">Test This</button>
+            </div>
+            <div class="barcode-card">
+                <h4>Snickers Bar</h4>
+                <div class="barcode-image">040000485285</div>
+                <button onclick="testBarcode('040000485285')" class="secondary">Test This</button>
+            </div>
+            <div class="barcode-card">
+                <h4>Bananas (PLU)</h4>
+                <div class="barcode-image">4011</div>
+                <button onclick="testBarcode('4011')" class="secondary">Test This</button>
+            </div>
+            <div class="barcode-card">
+                <h4>iPhone Cable</h4>
+                <div class="barcode-image">190198001787</div>
+                <button onclick="testBarcode('190198001787')" class="secondary">Test This</button>
+            </div>
+            <div class="barcode-card">
+                <h4>Red Bull</h4>
+                <div class="barcode-image">9002490100084</div>
+                <button onclick="testBarcode('9002490100084')" class="secondary">Test This</button>
+            </div>
+            <div class="barcode-card">
+                <h4>Unknown Product</h4>
+                <div class="barcode-image">999999999999</div>
+                <button onclick="testBarcode('999999999999')" class="secondary">Test This</button>
+            </div>
+        </div>
+        
+        <div id="manual-result"></div>
+    </div>
+    
+    <!-- Integration with Main App -->
+    <div class="test-section">
+        <h2>🔗 Integration Test</h2>
+        <p>Test how the scanner integrates with your main POS system:</p>
+        
+        <div class="controls">
+            <button onclick="openPOSCheckout()" class="success">Open POS Checkout</button>
+            <button onclick="openProductManagement()" class="success">Open Product Management</button>
+            <button onclick="openInventoryIntake()" class="success">Open Inventory Intake</button>
+        </div>
+        
+        <div class="test-results" id="integration-log">
+            <p><strong>Integration Test Log:</strong></p>
+            <p>Click the buttons above to test scanner integration in different parts of your app.</p>
+        </div>
+    </div>
+    
+    <!-- Physical Scanner Integration Guide -->
+    <div class="device-integration">
+        <h2>🖨️ Physical Barcode Scanner Integration</h2>
+        <p>Here's how to integrate physical barcode scanners with your POS system:</p>
+        
+        <div class="integration-steps">
+            <h3><span class="step-number">1</span>USB Barcode Scanners (Recommended)</h3>
+            <p>Most USB barcode scanners work as "keyboard emulation" devices:</p>
+            <ul>
+                <li>Scanner types like the <strong>Honeywell Voyager 1202g</strong> or <strong>Symbol LS2208</strong></li>
+                <li>They send keystrokes directly to the focused input field</li>
+                <li>No additional drivers needed - plug and play</li>
+                <li>Scanner typically sends barcode + Enter key</li>
+            </ul>
+            <code>// Your existing input fields already support this!</code>
+        </div>
+        
+        <div class="integration-steps">
+            <h3><span class="step-number">2</span>Web Serial API (Advanced)</h3>
+            <p>For more control over USB/Serial scanners:</p>
+            <pre><code>
+// Example Web Serial integration
+if ('serial' in navigator) {
+  const port = await navigator.serial.requestPort();
+  await port.open({ baudRate: 9600 });
+  
+  const reader = port.readable.getReader();
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    
+    const barcode = new TextDecoder().decode(value);
+    // Process barcode...
+  }
+}
+            </code></pre>
+        </div>
+        
+        <div class="integration-steps">
+            <h3><span class="step-number">3</span>Bluetooth Scanners</h3>
+            <p>For wireless barcode scanners using Web Bluetooth API:</p>
+            <ul>
+                <li>Scanners like <strong>Inateck BCST-70</strong> with Bluetooth HID mode</li>
+                <li>Pair via system Bluetooth settings</li>
+                <li>Works same as USB - keyboard emulation</li>
+            </ul>
+        </div>
+        
+        <div class="integration-steps">
+            <h3><span class="step-number">4</span>Enhanced Input Handling</h3>
+            <p>Update your forms to better handle scanner input:</p>
+            <pre><code>
+// Add to your barcode input fields
+&lt;input 
+  onKeyPress={handleScannerInput}
+  onPaste={handleBarcodeDataPaste}
+  autoFocus={true}
+  placeholder="Scan or type barcode"
+/&gt;
+
+function handleScannerInput(e) {
+  if (e.key === 'Enter' && e.target.value) {
+    processBarcode(e.target.value);
+    e.target.value = '';
+  }
+}
+            </code></pre>
+        </div>
+    </div>
+    
+    <script>
+        let codeReader = null;
+        let isScanning = false;
+        let testResults = [];
+
+        // Log function for integration testing
+        function logIntegration(message) {
+            const log = document.getElementById('integration-log');
+            const time = new Date().toLocaleTimeString();
+            log.innerHTML += `<p><span style="color: #666;">[${time}]</span> ${message}</p>`;
+            log.scrollTop = log.scrollHeight;
+        }
+
+        async function listCameras() {
+            try {
+                const devices = await ZXing.BrowserMultiFormatReader.listVideoInputDevices();
+                const cameraInfo = document.getElementById('camera-info');
+                cameraInfo.innerHTML = '<h4>📹 Available Cameras:</h4>';
+                
+                if (devices.length === 0) {
+                    cameraInfo.innerHTML += '<p style="color: red;">❌ No cameras found! Make sure camera permissions are granted.</p>';
+                    return;
+                }
+                
+                devices.forEach((device, index) => {
+                    cameraInfo.innerHTML += `<p>✅ Camera ${index + 1}: ${device.label || 'Unknown Camera'}</p>`;
+                });
+                
+                logIntegration(`Found ${devices.length} camera(s)`);
+            } catch (error) {
+                console.error('Error listing cameras:', error);
+                document.getElementById('camera-info').innerHTML = 
+                    '<p style="color: red;">❌ Error accessing cameras: ' + error.message + '</p>';
+                logIntegration('❌ Camera access error: ' + error.message);
+            }
+        }
+
+        async function startScanning() {
+            try {
+                codeReader = new ZXing.BrowserMultiFormatReader();
+                
+                const videoInputDevices = await ZXing.BrowserMultiFormatReader.listVideoInputDevices();
+                
+                if (videoInputDevices.length === 0) {
+                    alert('❌ No camera found! Please connect a camera and grant permissions.');
+                    return;
+                }
+                
+                const selectedDeviceId = videoInputDevices[0].deviceId;
+                const videoElement = document.getElementById('video');
+                
+                document.getElementById('result').innerHTML = 
+                    '<div class="result">📷 Camera starting... Point camera at a barcode.</div>';
+                
+                logIntegration('🎥 Camera scanner started');
+                
+                codeReader.decodeFromVideoDevice(selectedDeviceId, videoElement, (result, err) => {
+                    if (result) {
+                        const barcodeText = result.getText();
+                        const format = result.getBarcodeFormat();
+                        
+                        console.log('Barcode detected:', barcodeText);
+                        document.getElementById('result').innerHTML = 
+                            `<div class="result">
+                                <h3>✅ Barcode Successfully Scanned!</h3>
+                                <p><strong>Code:</strong> <code>${barcodeText}</code></p>
+                                <p><strong>Format:</strong> ${format}</p>
+                                <p><strong>Length:</strong> ${barcodeText.length} characters</p>
+                                <p><strong>Time:</strong> ${new Date().toLocaleString()}</p>
+                            </div>`;
+                        
+                        testResults.push({
+                            barcode: barcodeText,
+                            format: format,
+                            timestamp: new Date(),
+                            method: 'camera'
+                        });
+                        
+                        logIntegration(`✅ Scanned: ${barcodeText} (${format})`);
+                        
+                        // Test this barcode with manual testing
+                        setTimeout(() => testBarcode(barcodeText), 1000);
+                    }
+                    
+                    if (err && !(err instanceof ZXing.NotFoundException)) {
+                        console.error('Scanner error:', err);
+                        logIntegration('⚠️ Scanner error: ' + err.message);
+                    }
+                });
+                
+                isScanning = true;
+                document.getElementById('startBtn').disabled = true;
+                document.getElementById('stopBtn').disabled = false;
+                
+            } catch (error) {
+                console.error('Error starting scanner:', error);
+                document.getElementById('result').innerHTML = 
+                    '<div class="result error">❌ Error: ' + error.message + '</div>';
+                logIntegration('❌ Failed to start camera: ' + error.message);
+            }
+        }
+
+        function stopScanning() {
+            if (codeReader) {
+                codeReader.reset();
+                codeReader = null;
+            }
+            
+            isScanning = false;
+            document.getElementById('startBtn').disabled = false;
+            document.getElementById('stopBtn').disabled = true;
+            document.getElementById('result').innerHTML = 
+                '<div class="result">📷 Camera stopped.</div>';
+            
+            logIntegration('📷 Camera scanner stopped');
+        }
+
+        function testBarcode(barcode) {
+            const resultDiv = document.getElementById('manual-result');
+            
+            // Simulate product lookup
+            const products = {
+                '049000050202': { name: 'Coca-Cola 12oz Can', price: 1.99 },
+                '040000485285': { name: 'Snickers Chocolate Bar', price: 2.49 },
+                '4011': { name: 'Bananas (per lb)', price: 0.89 },
+                '190198001787': { name: 'iPhone Lightning Cable', price: 19.99 },
+                '9002490100084': { name: 'Red Bull Energy Drink', price: 3.99 }
+            };
+            
+            const product = products[barcode];
+            
+            if (product) {
+                resultDiv.innerHTML = 
+                    `<div class="result">
+                        <h3>✅ Product Found!</h3>
+                        <p><strong>Barcode:</strong> <code>${barcode}</code></p>
+                        <p><strong>Product:</strong> ${product.name}</p>
+                        <p><strong>Price:</strong> $${product.price}</p>
+                        <p><strong>Action:</strong> Would be added to cart in POS system</p>
+                    </div>`;
+                
+                logIntegration(`✅ Product found: ${product.name} ($${product.price})`);
+            } else {
+                resultDiv.innerHTML = 
+                    `<div class="result error">
+                        <h3>⚠️ Unknown Product</h3>
+                        <p><strong>Barcode:</strong> <code>${barcode}</code></p>
+                        <p><strong>Action:</strong> Would prompt to create new product in POS system</p>
+                    </div>`;
+                
+                logIntegration(`⚠️ Unknown barcode: ${barcode}`);
+            }
+            
+            testResults.push({
+                barcode: barcode,
+                found: !!product,
+                timestamp: new Date(),
+                method: 'manual'
+            });
+        }
+
+        function testManualBarcode() {
+            const input = document.getElementById('manualBarcode');
+            const barcode = input.value.trim();
+            
+            if (!barcode) {
+                alert('Please enter a barcode first');
+                return;
+            }
+            
+            testBarcode(barcode);
+            input.value = '';
+        }
+
+        function clearManual() {
+            document.getElementById('manualBarcode').value = '';
+            document.getElementById('manual-result').innerHTML = '';
+        }
+
+        function testDecodeFromImage() {
+            // This would test decoding from uploaded images
+            alert('📸 Image testing feature would allow users to upload barcode images for testing without a camera');
+            logIntegration('📸 Image decode test requested');
+        }
+
+        function openPOSCheckout() {
+            const url = 'http://localhost:3001/admin/checkout';
+            window.open(url, '_blank');
+            logIntegration('🛒 Opened POS Checkout system');
+        }
+
+        function openProductManagement() {
+            const url = 'http://localhost:3001/admin/products';
+            window.open(url, '_blank');
+            logIntegration('📦 Opened Product Management');
+        }
+
+        function openInventoryIntake() {
+            const url = 'http://localhost:3001/admin/inventory/intake';
+            window.open(url, '_blank');
+            logIntegration('📥 Opened Inventory Intake');
+        }
+
+        // Handle Enter key in manual input
+        document.addEventListener('DOMContentLoaded', function() {
+            const manualInput = document.getElementById('manualBarcode');
+            manualInput.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    testManualBarcode();
+                }
+            });
+            
+            // Auto-list cameras on page load
+            listCameras();
+            logIntegration('🚀 Barcode scanner test suite initialized');
+        });
+        
+        // Add global scanner simulation for physical device testing
+        let globalBarcodeBuffer = '';
+        let globalBarcodeTimeout = null;
+        
+        // Simulate physical scanner input (for testing without actual hardware)
+        document.addEventListener('keypress', function(e) {
+            // Only process if no input is focused (simulate scanner input)
+            if (!document.activeElement || document.activeElement.tagName !== 'INPUT') {
+                clearTimeout(globalBarcodeTimeout);
+                
+                if (e.key === 'Enter') {
+                    if (globalBarcodeBuffer.length > 0) {
+                        logIntegration(`🖨️ Physical scanner simulation: ${globalBarcodeBuffer}`);
+                        testBarcode(globalBarcodeBuffer);
+                        globalBarcodeBuffer = '';
+                    }
+                } else {
+                    globalBarcodeBuffer += e.key;
+                    
+                    // Clear buffer after 100ms of no input (typical scanner behavior)
+                    globalBarcodeTimeout = setTimeout(() => {
+                        globalBarcodeBuffer = '';
+                    }, 100);
+                }
+            }
+        });
+        
+        console.log('📊 Barcode Scanner Test Suite Loaded');
+        console.log('💡 To test physical scanner simulation: focus outside any input field and type a barcode followed by Enter');
+    </script>
+</body>
+</html>
