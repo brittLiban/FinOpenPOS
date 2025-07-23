@@ -57,16 +57,45 @@ export async function POST(request: Request) {
 
     const newProduct = await request.json();
 
-    // Add company_id and user_uid to the product
-    const productWithCompany = {
-      ...newProduct,
-      company_id: companyId,
-      user_uid: user.id
+    // Start with basic fields that definitely exist and build dynamically
+    const productForDB: any = {
+      name: newProduct.name,
+      barcode: newProduct.barcode || null,
+      price: Number(newProduct.price) || 0,
+      in_stock: Number(newProduct.in_stock) || Number(newProduct.quantity) || 0,
     };
+
+    // Add optional fields dynamically to avoid schema cache issues
+    if (companyId) {
+      productForDB.company_id = companyId;
+    }
+
+    if (user.id) {
+      productForDB.user_uid = user.id;
+    }
+
+    if (newProduct.description) {
+      productForDB.description = newProduct.description;
+    }
+    
+    if (newProduct.category) {
+      productForDB.category = newProduct.category;
+    }
+
+    if (newProduct.low_stock_threshold !== undefined) {
+      productForDB.low_stock_threshold = Number(newProduct.low_stock_threshold);
+    }
+
+    // Add image field (should work now)
+    if (newProduct.image) {
+      productForDB.image = newProduct.image;
+    }
+
+    console.log('Attempting to insert product:', productForDB);
 
     const { data, error } = await supabase
       .from('products')
-      .insert([productWithCompany])
+      .insert([productForDB])
       .select()
 
     if (error) {
@@ -75,15 +104,26 @@ export async function POST(request: Request) {
 
     // 🔁 Trigger product sync to Stripe (auto-sync after product creation)
     try {
-      const syncResponse = await fetch(`${process.env.NEXT_PUBLIC_SITE_URL}/api/sync-products`, {
+      // Use request headers to construct the correct URL
+      const host = request.headers.get('host') || 'localhost:3001';
+      const protocol = request.headers.get('x-forwarded-proto') || 'http';
+      const baseUrl = `${protocol}://${host}`;
+      
+      const syncResponse = await fetch(`${baseUrl}/api/sync-products`, {
         method: 'POST',
         headers: {
           'Authorization': request.headers.get('authorization') || '',
           'Cookie': request.headers.get('cookie') || '',
         },
       });
+      
       if (syncResponse.ok) {
         console.log(`✅ Auto-synced new product ${data[0].name} to Stripe`);
+      } else if (syncResponse.status === 400) {
+        // Expected if Stripe Connect not set up yet
+        console.log(`⚠️ Stripe sync skipped for ${data[0].name} - Stripe Connect not configured`);
+      } else {
+        console.warn(`⚠️ Stripe sync failed for ${data[0].name}:`, syncResponse.status);
       }
     } catch (syncError) {
       console.error("⚠️ Auto-sync to Stripe failed:", syncError);
@@ -102,6 +142,17 @@ export async function POST(request: Request) {
     
     return NextResponse.json(data[0])
   } catch (error: any) {
-    return NextResponse.json({ error: error.message || 'Unauthorized' }, { status: 401 });
+    console.error('❌ Product creation error:', error);
+    
+    // Check if it's an authentication error
+    if (error.message?.includes('Not authenticated') || error.message?.includes('company_id')) {
+      return NextResponse.json({ error: error.message || 'Unauthorized' }, { status: 401 });
+    }
+    
+    // Otherwise it's a server error
+    return NextResponse.json({ 
+      error: 'Failed to create product', 
+      details: error.message 
+    }, { status: 500 });
   }
 }

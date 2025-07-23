@@ -1,4 +1,4 @@
-import { createClient } from './supabase/client';
+import { createAdminClient } from './supabase/service';
 
 /**
  * Log an action to the audit log table.
@@ -24,7 +24,7 @@ export async function logAudit({
   details?: any,
   companyId: string // Made required to prevent audit log mixing
 }) {
-  const supabase = createClient();
+  const supabase = createAdminClient();
   
   // SECURITY: company_id is now required to prevent audit log data mixing
   if (!companyId) {
@@ -37,14 +37,24 @@ export async function logAudit({
     throw new Error(`Invalid company_id format: ${companyId}`);
   }
   
-  await supabase.from('audit_log').insert([
-    {
-      user_id: userId,
-      action_type: actionType,
-      entity_type: entityType,
-      entity_id: entityId,
-      details,
-      company_id: companyId
+  try {
+    const { error } = await supabase.from('audit_log').insert([
+      {
+        user_id: userId,
+        action_type: actionType,
+        entity_type: entityType,
+        entity_id: entityId,
+        details,
+        company_id: companyId
+      }
+    ]);
+    
+    if (error) {
+      console.error('❌ Audit log failed:', error);
+      // Don't throw - audit failure shouldn't break the main operation
     }
-  ]);
+  } catch (auditError) {
+    console.error('❌ Audit log error:', auditError);
+    // Don't throw - audit failure shouldn't break the main operation
+  }
 }
