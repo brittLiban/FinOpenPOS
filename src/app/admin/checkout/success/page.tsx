@@ -26,26 +26,9 @@ export default function CheckoutSuccessPage() {
             };
           }).filter((product: any) => product.id !== null) ?? []; // Filter out items without valid product_id
 
-          const payload = {
-            customer_id: null,
-            customer_name: data.customer_details?.name || "Guest",
-            customer_email: data.customer_details?.email || "",
-            payment_method_name: data.payment_method_types?.[0] || "Card",
-            payment_method_id: null,
-            total_amount: data.amount_total ? data.amount_total / 100 : 0,
-            status: data.payment_status === 'paid' ? 'completed' : 'pending',
-            products,
-            stripe_session_id: data.id,
-          };
-
-          fetch('/api/orders', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload),
-          })
-            .then((res) => res.json())
-            .then((json) => console.log('✅ Order posted:', json))
-            .catch((err) => console.error('❌ Order POST failed:', err));
+          // Order creation is now handled by the Stripe webhook to prevent duplicates
+          // The webhook is more reliable as it fires even if user closes browser
+          console.log('✅ Checkout session retrieved, order will be created by webhook');
         });
     }
   }, []);

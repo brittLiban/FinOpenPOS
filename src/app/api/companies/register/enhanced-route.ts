@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/service';
 import Stripe from 'stripe';
-import { generateUniqueSubdomain } from '@/lib/tenant';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2025-06-30.basil",
@@ -28,7 +27,29 @@ export async function POST(req: NextRequest) {
     const admin = createAdminClient();
 
     // Generate unique subdomain
-    const subdomain = await generateUniqueSubdomain(companyName);
+    const baseSubdomain = companyName
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-|-$/g, '') // Remove leading/trailing dashes
+      .substring(0, 20);
+
+    // Check for existing subdomains and make unique
+    let subdomain = baseSubdomain;
+    let counter = 1;
+    
+    while (true) {
+      const { data: existing } = await admin
+        .from('companies')
+        .select('id')
+        .eq('subdomain', subdomain)
+        .single();
+        
+      if (!existing) break; // Subdomain is available
+      
+      subdomain = `${baseSubdomain}${counter}`;
+      counter++;
+    }
 
     // Create Stripe Connect Express account
     const stripeAccount = await stripe.accounts.create({
@@ -39,7 +60,7 @@ export async function POST(req: NextRequest) {
         card_payments: { requested: true },
         transfers: { requested: true },
       },
-      business_type: businessType === 'individual' ? 'individual' : 'company',
+      business_type: 'individual', // or 'company' based on businessType
       metadata: {
         company_name: companyName,
         owner_email: ownerEmail,
@@ -47,19 +68,15 @@ export async function POST(req: NextRequest) {
       }
     });
 
-    // Create company with enhanced multi-tenant fields
+    // Create company with Stripe account and subdomain
     const { data: company, error: companyError } = await admin
       .from('companies')
       .insert({
         name: companyName,
-        business_type: businessType || 'retail',
+        business_type: businessType,
         subdomain: subdomain,
         stripe_account_id: stripeAccount.id,
         stripe_onboarding_complete: false,
-        stripe_charges_enabled: false,
-        stripe_payouts_enabled: false,
-        stripe_details_submitted: false,
-        platform_fee_percentage: parseFloat(process.env.PLATFORM_FEE_PERCENTAGE || '2.5'),
         created_at: new Date().toISOString()
       })
       .select()
@@ -67,18 +84,14 @@ export async function POST(req: NextRequest) {
 
     if (companyError) {
       // Cleanup Stripe account if company creation fails
-      try {
-        await stripe.accounts.del(stripeAccount.id);
-      } catch (stripeError) {
-        console.error('Failed to cleanup Stripe account:', stripeError);
-      }
+      await stripe.accounts.del(stripeAccount.id);
       return NextResponse.json(
         { error: 'Failed to create company', details: companyError.message }, 
         { status: 500 }
       );
     }
 
-    // Create enhanced profile for the user
+    // Create profile for the existing user
     const { error: profileError } = await admin
       .from('profiles')
       .insert({
@@ -87,18 +100,13 @@ export async function POST(req: NextRequest) {
         company_id: company.id,
         first_name: contactInfo?.firstName,
         last_name: contactInfo?.lastName,
-        phone: contactInfo?.phone,
-        created_at: new Date().toISOString()
+        phone: contactInfo?.phone
       });
 
     if (profileError) {
       // Cleanup company and Stripe account if profile creation fails
       await admin.from('companies').delete().eq('id', company.id);
-      try {
-        await stripe.accounts.del(stripeAccount.id);
-      } catch (stripeError) {
-        console.error('Failed to cleanup Stripe account:', stripeError);
-      }
+      await stripe.accounts.del(stripeAccount.id);
       return NextResponse.json(
         { error: 'Failed to create user profile', details: profileError?.message || 'Unknown error' }, 
         { status: 500 }
@@ -132,7 +140,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Find the admin role (company owner must always be admin)
-    const adminRole = createdRoles.find((role: any) => role.name === 'admin') || createdRoles[0];
+    const adminRole = createdRoles.find(role => role.name === 'admin') || createdRoles[0];
 
     // Assign admin permissions to company owner
     const sidebarItems = [
@@ -161,29 +169,22 @@ export async function POST(req: NextRequest) {
     }
 
     // Create Stripe Connect onboarding link
-    const tenantDomain = process.env.NEXT_PUBLIC_TENANT_DOMAIN || 'localhost:3000';
-    const protocol = tenantDomain.includes('localhost') ? 'http' : 'https';
-    const baseUrl = tenantDomain.includes('localhost') 
-      ? `${protocol}://${tenantDomain}` 
-      : `${protocol}://${subdomain}.${tenantDomain}`;
-
     const accountLink = await stripe.accountLinks.create({
       account: stripeAccount.id,
-      refresh_url: `${baseUrl}/settings/payments/refresh`,
-      return_url: `${baseUrl}/settings/payments/success`,
+      refresh_url: `https://${subdomain}.${process.env.NEXT_PUBLIC_TENANT_DOMAIN || 'localhost:3000'}/settings/payments/refresh`,
+      return_url: `https://${subdomain}.${process.env.NEXT_PUBLIC_TENANT_DOMAIN || 'localhost:3000'}/settings/payments/success`,
       type: 'account_onboarding',
     });
 
-    // Create sample data
+    // Create sample data (optional)
     await createSampleData(admin, company.id, ownerUserId);
 
-    console.log(`✅ Successfully registered company with full multi-tenant setup:`, {
+    console.log(`✅ Successfully registered company with multi-tenant setup:`, {
       userId: ownerUserId,
       companyId: company.id,
       companyName: company.name,
       subdomain: subdomain,
       stripeAccountId: stripeAccount.id,
-      tenantUrl: baseUrl,
       roleName: 'admin',
       roleId: adminRole.id,
       permissionsCount: sidebarItems.length
@@ -195,8 +196,7 @@ export async function POST(req: NextRequest) {
         id: company.id,
         name: company.name,
         subdomain: subdomain,
-        stripe_account_id: stripeAccount.id,
-        business_type: company.business_type
+        stripe_account_id: stripeAccount.id
       },
       user: {
         id: ownerUserId,
@@ -205,99 +205,59 @@ export async function POST(req: NextRequest) {
       },
       onboarding: {
         stripe_onboarding_url: accountLink.url,
-        tenant_url: baseUrl,
+        tenant_url: `https://${subdomain}.${process.env.NEXT_PUBLIC_TENANT_DOMAIN || 'localhost:3000'}`,
         needs_stripe_setup: true
       },
       permissions: sidebarItems,
-      availableRoles: createdRoles.map((r: any) => ({ id: r.id, name: r.name }))
+      availableRoles: createdRoles.map(r => ({ id: r.id, name: r.name }))
     });
 
   } catch (error) {
     console.error('Company registration error:', error);
     return NextResponse.json(
-      { error: 'Internal server error', details: error instanceof Error ? error.message : 'Unknown error' }, 
+      { error: 'Internal server error' }, 
       { status: 500 }
     );
   }
 }
 
-// Enhanced sample data creation function
+// Sample data creation function (keeping your existing logic)
 async function createSampleData(supabase: any, companyId: string, ownerId: string) {
-  try {
-    // Create sample categories
-    const categories = [
-      { name: 'Electronics', company_id: companyId, created_at: new Date().toISOString() },
-      { name: 'Clothing', company_id: companyId, created_at: new Date().toISOString() },
-      { name: 'Food & Beverage', company_id: companyId, created_at: new Date().toISOString() },
-      { name: 'Books', company_id: companyId, created_at: new Date().toISOString() }
+  // Create sample categories
+  const categories = [
+    { name: 'Electronics', company_id: companyId },
+    { name: 'Clothing', company_id: companyId },
+    { name: 'Food & Beverage', company_id: companyId }
+  ];
+
+  const { data: createdCategories } = await supabase
+    .from('categories')
+    .insert(categories)
+    .select();
+
+  if (createdCategories?.length > 0) {
+    // Create sample products
+    const products = [
+      {
+        name: 'Sample Phone',
+        sku: 'PHONE-001',
+        price: 299.99,
+        cost: 200.00,
+        stock_quantity: 10,
+        category_id: createdCategories[0].id,
+        company_id: companyId
+      },
+      {
+        name: 'Sample T-Shirt',
+        sku: 'SHIRT-001', 
+        price: 29.99,
+        cost: 15.00,
+        stock_quantity: 25,
+        category_id: createdCategories[1].id,
+        company_id: companyId
+      }
     ];
 
-    const { data: createdCategories } = await supabase
-      .from('categories')
-      .insert(categories)
-      .select();
-
-    if (createdCategories?.length > 0) {
-      // Create sample products with more variety
-      const products = [
-        {
-          name: 'iPhone 15 Pro',
-          sku: 'IPHONE-15-PRO',
-          price: 999.99,
-          cost: 750.00,
-          stock_quantity: 5,
-          category_id: createdCategories[0].id,
-          company_id: companyId,
-          description: 'Latest iPhone with pro features'
-        },
-        {
-          name: 'Samsung Galaxy S24',
-          sku: 'GALAXY-S24',
-          price: 899.99,
-          cost: 650.00,
-          stock_quantity: 8,
-          category_id: createdCategories[0].id,
-          company_id: companyId,
-          description: 'Flagship Samsung smartphone'
-        },
-        {
-          name: 'Premium T-Shirt',
-          sku: 'TSHIRT-PREM',
-          price: 39.99,
-          cost: 15.00,
-          stock_quantity: 25,
-          category_id: createdCategories[1].id,
-          company_id: companyId,
-          description: 'High-quality cotton t-shirt'
-        },
-        {
-          name: 'Coffee Blend Premium',
-          sku: 'COFFEE-PREM',
-          price: 24.99,
-          cost: 12.00,
-          stock_quantity: 50,
-          category_id: createdCategories[2].id,
-          company_id: companyId,
-          description: 'Premium coffee blend'
-        },
-        {
-          name: 'Business Strategy Book',
-          sku: 'BOOK-STRAT',
-          price: 29.99,
-          cost: 18.00,
-          stock_quantity: 15,
-          category_id: createdCategories[3].id,
-          company_id: companyId,
-          description: 'Essential business strategy guide'
-        }
-      ];
-
-      await supabase.from('products').insert(products);
-      
-      console.log(`✅ Created sample data for company ${companyId}: ${categories.length} categories, ${products.length} products`);
-    }
-  } catch (error) {
-    console.error('Failed to create sample data:', error);
-    // Don't fail the registration if sample data creation fails
+    await supabase.from('products').insert(products);
   }
 }

@@ -38,11 +38,16 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if company has Stripe Connect enabled
-    if (!company.stripe_account_id || !company.stripe_charges_enabled) {
+    if (!company.stripe_account_id) {
       return NextResponse.json({ 
         error: 'Stripe account not set up. Please complete onboarding first.',
         needsOnboarding: true
       }, { status: 400 });
+    }
+
+    // For development: Allow sync even if charges not fully enabled
+    if (!company.stripe_charges_enabled) {
+      console.warn(`⚠️ Proceeding with Stripe sync for ${company.name} even though charges not enabled (development mode)`);
     }
 
     // Get products for this company only
@@ -66,7 +71,38 @@ export async function POST(request: NextRequest) {
       }
 
       try {
-        // Create product in Stripe using the company's Connect account
+        // Check if this is a development/test account
+        const isDevAccount = company.stripe_account_id.startsWith('acct_dev_test_');
+        
+        if (isDevAccount) {
+          // Mock Stripe sync for development
+          console.log(`🧪 Development mode: Mocking Stripe sync for ${product.name}`);
+          
+          // Generate mock Stripe IDs
+          const mockProductId = `prod_dev_${product.id}_${Date.now()}`;
+          const mockPriceId = `price_dev_${product.id}_${Date.now()}`;
+          
+          // Update product with mock Stripe IDs
+          const { error: updateError } = await adminSupabase
+            .from('products')
+            .update({
+              stripe_product_id: mockProductId,
+              stripe_price_id: mockPriceId,
+            })
+            .eq('id', product.id)
+            .eq('company_id', profile.company_id);
+
+          if (updateError) {
+            console.error(`❌ Failed to update product ${product.id}:`, updateError);
+            continue;
+          }
+
+          syncedCount++;
+          console.log(`✅ Mock synced product: ${product.name} (ID: ${product.id})`);
+          continue;
+        }
+
+        // Real Stripe sync for production accounts
         const stripeProduct = await stripe.products.create({
           name: product.name,
           description: product.description || '',
@@ -110,10 +146,14 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    const isDevMode = company.stripe_account_id.startsWith('acct_dev_test_');
+    const syncType = isDevMode ? 'mock synced' : 'synced';
+    
     return NextResponse.json({ 
-      message: `✅ Successfully synced ${syncedCount} products to Stripe Connect account`,
+      message: `✅ Successfully ${syncType} ${syncedCount} products to Stripe ${isDevMode ? '(Development Mode)' : 'Connect account'}`,
       company: company.name,
-      syncedCount 
+      syncedCount,
+      developmentMode: isDevMode
     });
 
   } catch (error) {

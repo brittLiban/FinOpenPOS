@@ -25,22 +25,40 @@ export async function POST(req: Request) {
     return new Response(`Webhook Error: ${err.message}`, { status: 400 });
   }
 
-  if (event.type !== "checkout.session.completed") {
-    console.log("ℹ️ Ignoring event type:", event.type);
-    return new Response("Ignored", { status: 200 });
+  // Handle different event types
+  switch (event.type) {
+    case "checkout.session.completed":
+      await handleCheckoutCompleted(event.data.object as Stripe.Checkout.Session);
+      break;
+    
+    case "account.updated":
+      await handleAccountUpdated(event.data.object as Stripe.Account);
+      break;
+      
+    default:
+      console.log(`ℹ️ Unhandled event type: ${event.type}`);
   }
 
-  const session = event.data.object as Stripe.Checkout.Session;
-  console.log("📦 Session ID:", session.id);
-  console.log("📦 Event ID:", event.id);
+  return new Response("Success", { status: 200 });
+}
+
+async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
+  console.log("📦 Processing checkout session:", session.id);
+  console.log("📦 Session metadata:", session.metadata);
 
   const supabase = createAdminClient();
 
-  // Get company ID from session metadata
+  // Get company ID and user ID from session metadata
   const companyId = session.metadata?.company_id;
+  const userUid = session.metadata?.user_uid;
+  
   if (!companyId) {
     console.error("❌ No company_id in session metadata");
-    return new Response("Missing company_id", { status: 400 });
+    return;
+  }
+
+  if (!userUid) {
+    console.warn("⚠️ No user_uid in session metadata, order will be created without user association");
   }
 
   // Check if session was already processed
@@ -53,7 +71,7 @@ export async function POST(req: Request) {
 
   if (existingSession) {
     console.log(`⚠️ Session ${session.id} already processed. Skipping.`);
-    return new Response("Already processed", { status: 200 });
+    return;
   }
 
   // Get line items from Stripe
@@ -142,19 +160,34 @@ export async function POST(req: Request) {
     );
   }
 
-  // Insert order record with company isolation
-  const { error: orderErr } = await supabase.from("orders").insert({
+  // Insert order record with company isolation and complete details
+  console.log(`📦 Creating order for session ${session.id}, company ${companyId}, user ${userUid}`);
+  
+  const orderData = {
     stripe_session_id: session.id,
     amount_total: session.amount_total,
+    total_amount: session.amount_total ? session.amount_total / 100 : 0, // Convert to dollars
     customer_email: session.customer_details?.email,
-    customer_name: session.customer_details?.name,
+    customer_name: session.customer_details?.name || "Guest",
+    payment_method_name: session.payment_method_types?.[0] || "card",
+    status: session.payment_status === 'paid' ? 'completed' : 'pending',
+    user_uid: userUid || null, // Associate with the user who initiated checkout
     company_id: companyId, // Ensure order is associated with the right company
-  });
+  };
+  
+  console.log('📦 Order data:', orderData);
+  
+  const { data: orderData_result, error: orderErr } = await supabase
+    .from("orders")
+    .insert(orderData)
+    .select('*')
+    .single();
 
   if (orderErr) {
     console.error("⚠️ Could not insert order record:", orderErr);
   } else {
-    console.log(`📦 Order record saved for session: ${session.id}, company: ${companyId}`);
+    console.log(`📦 Order record saved:`, orderData_result);
+    console.log(`📦 Order ID: ${orderData_result.id}, Session: ${session.id}, Company: ${companyId}`);
   }
 
   // Update transaction status to completed
@@ -169,13 +202,30 @@ export async function POST(req: Request) {
   } else {
     console.log(`💰 Transaction marked as completed for session: ${session.id}`);
   }
+}
 
-  // Mark session as processed with company isolation
-  await supabase.from("processed_sessions").insert({
-    session_id: session.id,
-    company_id: companyId,
-  });
+async function handleAccountUpdated(account: Stripe.Account) {
+  console.log("🏦 Processing account update:", account.id);
+  
+  const supabase = createAdminClient();
+  
+  // Update company Stripe status
+  const { error } = await supabase
+    .from('companies')
+    .update({
+      stripe_charges_enabled: account.charges_enabled,
+      stripe_payouts_enabled: account.payouts_enabled,
+      stripe_details_submitted: account.details_submitted,
+      stripe_onboarding_complete: account.details_submitted && account.charges_enabled
+    })
+    .eq('stripe_account_id', account.id);
 
-  console.log("🧾 Session marked as processed.");
-  return new Response("Success", { status: 200 });
+  if (error) {
+    console.error("⚠️ Could not update company Stripe status:", error);
+  } else {
+    console.log(`🏦 Updated Stripe status for account: ${account.id}`);
+    console.log(`✅ Charges enabled: ${account.charges_enabled}`);
+    console.log(`💸 Payouts enabled: ${account.payouts_enabled}`);
+    console.log(`📋 Details submitted: ${account.details_submitted}`);
+  }
 }

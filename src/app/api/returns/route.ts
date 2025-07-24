@@ -72,6 +72,7 @@ export async function POST(req: Request) {
       actionType,
       entityType: 'return',
       entityId: order_id ? String(order_id) : undefined,
+      companyId: profile.company_id,
       details
     });
   };

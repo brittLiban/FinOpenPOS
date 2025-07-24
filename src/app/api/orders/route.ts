@@ -13,6 +13,20 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
+  // Get user's company for multi-tenant filtering
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('company_id')
+    .eq('id', user.id)
+    .single();
+
+  if (!profile?.company_id) {
+    return NextResponse.json({ error: 'No company associated with user' }, { status: 400 });
+  }
+
+  console.log(`🔍 Orders API: user_id=${user.id}, company_id=${profile.company_id}`);
+  console.log(`🔍 Query will be: company_id.eq.${profile.company_id} OR (user_uid.eq.${user.id} AND company_id.eq.00000000-0000-0000-0000-000000000000)`);
+
   const { searchParams } = req.nextUrl;
   
   // Server-side filtering and pagination
@@ -34,11 +48,15 @@ export async function GET(req: NextRequest) {
       payment_method_name,
       total_amount,
       status,
-      created_at
+      created_at,
+      user_uid,
+      company_id
     `)
-    .eq('user_uid', user.id)
+    .eq('company_id', profile.company_id) // Simple company filter since we fixed existing orders
     .order('created_at', { ascending: false })
     .range(offset, offset + limit - 1);
+
+  console.log('🔍 Orders query constructed - filtering by company_id:', profile.company_id);
 
   // Apply server-side filters
   if (id) {
@@ -68,8 +86,12 @@ export async function GET(req: NextRequest) {
   const { data, error } = await query;
 
   if (error) {
+    console.error('❌ Orders query error:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
+
+  console.log(`📦 Orders API: Found ${data?.length || 0} orders for company ${profile.company_id}`);
+  console.log('📦 First few orders:', data?.slice(0, 3));
 
   return NextResponse.json(data);
 }

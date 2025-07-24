@@ -191,6 +191,7 @@ export async function POST(req: NextRequest) {
       metadata: {
         company_id: profile.company_id,
         company_name: company.name,
+        user_uid: user.id, // Add user who initiated checkout
         discount_percent: discountPercent ? discountPercent.toFixed(2) : "0",
         tax_rate: taxRate ? taxRate.toFixed(2) : "0",
         tax_amount: taxAmount ? taxAmount.toFixed(2) : "0",
@@ -234,7 +235,32 @@ export async function POST(req: NextRequest) {
 
   } catch (err: any) {
     console.error("❌ Stripe Connect checkout error", err);
-    await logCheckoutAudit('checkout_failed', { error: err.message });
+    
+    // Log error audit if we have user context
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('company_id')
+          .eq('id', user.id)
+          .single();
+        
+        if (profile?.company_id) {
+          const { logAudit } = await import("@/lib/log-audit");
+          await logAudit({
+            userId: user.id,
+            actionType: 'checkout_failed',
+            entityType: 'checkout',
+            details: { error: err.message },
+            companyId: profile.company_id
+          });
+        }
+      }
+    } catch (auditErr) {
+      console.warn("Failed to log checkout error audit:", auditErr);
+    }
+    
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }

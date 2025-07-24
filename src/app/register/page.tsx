@@ -122,6 +122,12 @@ export default function RegisterPage() {
         return;
       }
 
+      // Get the enhanced registration response
+      const registrationData = await response.json();
+      
+      // Store registration data for success page
+      sessionStorage.setItem('registrationSuccess', JSON.stringify(registrationData));
+
       setSuccess(true);
       
       // Redirect to success page after a moment
