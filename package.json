@@ -1,6 +1,23 @@
 {
-  "name": "finance",
-  "version": "0.1.0",
+  "name": "yourpos-multitenant-platform",
+  "version": "1.0.0",
+  "description": "Multi-tenant POS SaaS platform with Stripe Connect integration",
+  "author": "brittLiban",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/brittLiban/YourPOS-Platform.git"
+  },
+  "keywords": [
+    "pos",
+    "saas",
+    "multi-tenant",
+    "stripe-connect",
+    "point-of-sale",
+    "inventory-management",
+    "nextjs",
+    "supabase"
+  ],
   "private": true,
   "scripts": {
     "dev": "next dev",

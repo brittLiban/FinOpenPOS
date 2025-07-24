@@ -1,0 +1,64 @@
+YourPOS Multi-Tenant Platform License
+Copyright (c) 2025 brittLiban
+
+## Grant of License
+
+Subject to the terms of this license, you are granted a non-exclusive, 
+worldwide license to:
+
+1. **Use** this software for personal, educational, or internal business purposes
+2. **Modify** the software for your own use
+3. **Study** the multi-tenant architecture and implementation
+
+## Restrictions
+
+You may NOT:
+
+1. **Commercial SaaS Deployment**: Deploy this software as a competing 
+   multi-tenant SaaS platform without explicit written permission
+2. **Stripe Connect Resale**: Use the Stripe Connect integration to create 
+   competing payment platforms
+3. **White-label Distribution**: Sell or distribute this as a white-label 
+   SaaS solution
+4. **Remove Attribution**: Remove or modify copyright notices
+
+## Permitted Commercial Use
+
+You MAY:
+- Use this for a single company's internal POS system
+- Modify for your own business needs
+- Learn from the multi-tenant architecture
+- Contribute improvements back to the project
+
+## Multi-Tenant SaaS Rights
+
+The multi-tenant architecture, Stripe Connect platform integration, automated
+tenant onboarding, and subdomain routing system represent substantial original
+innovation. Commercial deployment as a competing SaaS platform requires a
+separate commercial license.
+
+## Commercial Licensing
+
+For commercial SaaS platform deployment, white-label distribution, or 
+competing platform development, please contact:
+
+Email: [your-email@domain.com]
+Subject: Commercial License Inquiry
+
+## Contributions
+
+By contributing to this project, you agree that your contributions will be 
+licensed under the same terms as this license.
+
+## Disclaimer
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+
+---
+
+**Built with ❤️ for the SaaS community**
+
+*This license protects the innovative multi-tenant architecture while 
+encouraging learning and non-competing use.*
